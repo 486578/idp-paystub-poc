@@ -5,7 +5,7 @@
 
 **Last updated:** 2026-11-11
 **Current phase:** 1. Core logic
-**Next action:** F6 (checks).
+**Next action:** F7 (OCR reading wrapper). Waiting on Q14 group A and Q15.
 
 ---
 
@@ -23,7 +23,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F3 | Config: `AnalyzerConfig`, YAML loading, defaults, validation; `config/default.yaml` | `config.py`, `errors.py` | F2 | ✅ | |
 | F4 | AGI calculation + answer-key replay test (eval 7a) | `agi.py`, `matching.py`, `evaluation/answer_keys.py` | F2, F3 | ✅ | |
 | F5 | Rule engine R1–R10 | `rules.py` | F2, F3 | ✅ | |
-| F6 | Checks: grounding, net reconciliation, Social Security/Medicare gap, federal taxable wages | `checks.py` | F2, F3 | ⬜ | |
+| F6 | Checks: grounding, net reconciliation, Social Security/Medicare gap, federal taxable wages | `checks.py` | F2, F3 | ✅ | |
 | F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ⬜ | |
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ⬜ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ⬜ | |
@@ -99,6 +99,22 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 - **Pre-tax yes/no column** (confirmed by the business in round 1): two new keyword lists, `column_yes_values` and `column_no_values`.
 - **Tests:** every rule has "fires", "doesn't fire" and "loses to earlier rules" tests, and every setting value is tested. The worked examples stub_0006 and stub_0002 pass end to end with the expected AGIs.
 
+### F6: Checks ✅ (`tests/unit/test_checks.py` 46 tests; config and model tests extended)
+- **API:**
+  - `run_checks(evidence, decisions, ChecksConfig, document_text=None, checks=DEFAULT_CHECKS)` returns a `CheckReport`: flags, plus the checks that couldn't run (`not_run`).
+  - `apply_review(decisions, report)` moves flagged rows to `needs_review` and records `escalated_from` and `escalated_by`.
+- **Checks:**
+
+  | Check | Runs when | Flags |
+  |---|---|---|
+  | Grounding | OCR text is given | Amounts not found among the document's numbers. Text (labels, headings, codes, footnotes) whose words aren't all in the document. Flags only (DL-019). |
+  | Net | gross, net and every amount are present | Stub only. Employer rows are skipped; taxes listed among deductions (R2) are counted. |
+  | Federal taxable wages | printed wages and gross are present | Stub, plus R9/R10 rows not already in review → review. |
+  | Payroll-tax gap | gross and a single Social Security and/or Medicare line | Every available tax must imply wages below gross. Stub, plus R9/R10 `not_pretax` cafeteria-plan rows → review. |
+
+- **Robustness:** decisions that don't match the evidence rows, and flags pointing at rows that don't exist, raise `InputMismatchError` instead of giving silently wrong results.
+- **Settings:** a new `checks` section in `ChecksConfig` and `config/default.yaml` (DL-018, DL-020).
+
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
 - **Formula:** `AGI = (gross − one_time − pretax) × periods + one_time`, in `Decimal`, rounded **once at the end** to cents with `ROUND_HALF_UP`.
@@ -163,6 +179,10 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
   - Not `med`: it means Medicare tax on some stubs and medical insurance on others.
 - **Matching limitation:** joined proprietary codes such as "PX401 EEPRE" aren't matched (`eepre` is one word). This goes to the break-it phase.
 
+| ID | Question | Why it matters | Proposed answer |
+|---|---|---|---|
+| Q15 | Grounding failures are currently **flagged only** (DL-019). Should a deduction whose label, heading, code or amount can't be found in the OCR text go to `needs_review`? | Defends against the model inventing a "Pre-Tax" heading or code | Yes, send it to review |
+
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
 |---|---|---|---|
@@ -203,6 +223,8 @@ These don't block building; they're **settings** (architecture section 7). The P
 ---
 
 ## 4. Decisions log
+
+Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept for history only; new decisions go there.
 
 | Date | Decision | Source |
 |---|---|---|
@@ -275,6 +297,18 @@ These don't block building; they're **settings** (architecture section 7). The P
 | 7 | **Design:** no I/O, config passed in, rules swappable without editing the engine, and the stand-in rule in the tests satisfies the protocol. | — | — | OK |
 | 8 | Evidence strings contain document text. They're part of the result, but must never be logged (AGENTS section 8). | — | Check again in F10. | Noted |
 
+### F6 review (2026-11-11)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | `run_checks` assumed decisions lined up one-to-one with the evidence rows; a shorter or reordered list gave silently wrong net and federal-wages results. | High (silent wrong result) | Failing tests first; now raises `InputMismatchError`. | Fixed |
+| 2 | `apply_review` silently ignored a flag pointing at a row that doesn't exist (a buggy custom check would go unnoticed). | Medium | Failing test first; now raises `InputMismatchError`. | Fixed |
+| 3 | Test arithmetic: the fixture's net pay was wrong (1,374.56 instead of 1,299.56). Caught while checking the tests by hand, before the first green run. | Low | Fixed in the test. | Fixed |
+| 4 | Grounding matches numbers anywhere in the document, so an invented amount that happens to equal another printed number (e.g. a year-to-date figure) passes. It's a weak defence on its own. | Medium | Break-it phase; F7 tables may let us check per row. | Open |
+| 5 | Grounding for text needs all of its words somewhere in the document, not next to each other, so a heading stitched together from words elsewhere on the stub would pass. | Low | Break-it phase. | Open |
+| 6 | The payroll-tax gap uses the Social Security and Medicare rates from config. The Additional Medicare tax (0.9% above $200k) makes implied wages **higher**, which can't cause a false gap. | — | — | OK |
+| 7 | Flag messages include amounts. That's fine for results, but they must never be logged (AGENTS section 8). | — | Check again in F10. | Noted |
+| 8 | **Design:** each check is a class behind a protocol; the stand-in check in the tests proves the list can be swapped. Checks have no I/O and only `apply_review` changes decisions, while extracted values are never touched (tested). | — | — | OK |
+
 <!-- Template:
 ### F<n> review (date)
 | # | Finding | Severity | Fix (test first) | Status |
@@ -306,3 +340,4 @@ _None yet._
   - Downloaded the 82 answer keys into `data/answer_keys/`.
   - Completed F2, F3 and F4; the 82/82 replay passes.
   - Q9–Q11 are still unanswered. I proceeded without them: dependency holds not copied, `summary.md` not committed, and the architecture doc not yet changed (the code follows `agi.py`).
+  - Created `decisionlog.md` (DL-001 to DL-020) at the user's request. Keyword additions (DL-017) done. Completed F6 using the approved review policy (DL-018).

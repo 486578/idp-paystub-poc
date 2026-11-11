@@ -100,3 +100,14 @@ agi:
     one_time: 1
   # Used only when no frequency is printed and the period dates don't give one.
   default_frequency: null
+
+checks:
+  # Checks flag inconsistencies; they never change extracted amounts (decisionlog DL-018).
+  net_tolerance: 0.02          # gross - taxes - employee deductions vs printed net
+  wage_tolerance: 1.00         # federal taxable wages, and payroll-tax implied wages vs gross
+  social_security_rate: 0.062
+  medicare_rate: 0.0145
+  social_security_labels: [social security, oasdi, soc sec]
+  medicare_labels: [medicare]
+  # Benefits usually taken before Social Security/Medicare tax (Section 125).
+  cafeteria_plan_names: [medical, health, dental, vision, hsa, fsa]

@@ -1,8 +1,9 @@
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from paystub_agi.config import AgiConfig, AnalyzerConfig, RulesConfig
+from paystub_agi.config import AgiConfig, AnalyzerConfig, ChecksConfig, RulesConfig
 from paystub_agi.errors import ConfigError
 from paystub_agi.models import PayFrequency
 
@@ -177,6 +178,50 @@ def test_config_one_time_earnings_may_be_empty() -> None:
     config = AnalyzerConfig.from_mapping({"agi": {"one_time_earnings": []}})
 
     assert config.agi.one_time_earnings == ()
+
+
+# --- checks settings ----------------------------------------------------------------
+
+
+def test_config_checks_defaults() -> None:
+    checks = ChecksConfig()
+
+    assert checks.net_tolerance == Decimal("0.02")
+    assert checks.wage_tolerance == Decimal("1.00")
+    assert checks.social_security_rate == Decimal("0.062")
+    assert checks.medicare_rate == Decimal("0.0145")
+    assert checks.social_security_labels == ("social security", "oasdi", "soc sec")
+    assert checks.medicare_labels == ("medicare",)
+    assert checks.cafeteria_plan_names == (
+        "medical",
+        "health",
+        "dental",
+        "vision",
+        "hsa",
+        "fsa",
+    )
+
+
+def test_config_checks_decimal_from_yaml_float_is_exact(tmp_path: Path) -> None:
+    path = _write(tmp_path, "checks:\n  medicare_rate: 0.0145\n")
+
+    assert AnalyzerConfig.from_yaml(path).checks.medicare_rate == Decimal("0.0145")
+
+
+@pytest.mark.parametrize(
+    "setting",
+    ["net_tolerance", "wage_tolerance", "social_security_rate", "medicare_rate"],
+)
+@pytest.mark.parametrize("bad", [-1, "abc"])
+def test_config_checks_number_must_be_non_negative(setting: str, bad: object) -> None:
+    with pytest.raises(ConfigError, match=setting):
+        AnalyzerConfig.from_mapping({"checks": {setting: bad}})
+
+
+@pytest.mark.parametrize("setting", ["social_security_rate", "medicare_rate"])
+def test_config_checks_rate_must_not_be_zero(setting: str) -> None:
+    with pytest.raises(ConfigError, match=setting):
+        AnalyzerConfig.from_mapping({"checks": {setting: 0}})
 
 
 # --- loading ---------------------------------------------------------------------------

@@ -7,6 +7,10 @@ from pydantic import ValidationError
 
 from paystub_agi.models import (
     AmountLine,
+    CheckCode,
+    CheckFlag,
+    CheckName,
+    CheckReport,
     CodeValue,
     Decision,
     DeductionDecision,
@@ -282,3 +286,29 @@ def test_models_deduction_decision_keeps_rule_and_evidence() -> None:
 
     assert decided.rule_id is RuleId.R9
     assert decided.evidence == "Medical"
+    assert decided.escalated_from is None
+    assert decided.escalated_by is None
+
+
+# --- checks ------------------------------------------------------------------------
+
+
+def test_models_check_flag_defaults_to_stub_level_without_review() -> None:
+    flag = CheckFlag(code=CheckCode.NET_MISMATCH, message="net differs")
+
+    assert flag.deduction_index is None
+    assert flag.send_to_review is False
+
+
+def test_models_check_flag_rejects_negative_row_index() -> None:
+    with pytest.raises(ValidationError):
+        CheckFlag(code=CheckCode.NET_MISMATCH, message="x", deduction_index=-1)
+
+
+def test_models_check_report_holds_flags_and_checks_not_run() -> None:
+    report = CheckReport(
+        flags=(CheckFlag(code=CheckCode.NET_MISMATCH, message="net differs"),),
+        not_run=(CheckName.GROUNDING,),
+    )
+
+    assert report.not_run == (CheckName.GROUNDING,)

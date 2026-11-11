@@ -11,3 +11,7 @@ class ConfigError(PaystubAgiError):
 
 class ClassificationError(PaystubAgiError):
     """The rule list left a deduction undecided (it needs a catch-all last rule)."""
+
+
+class InputMismatchError(PaystubAgiError):
+    """Inputs that must belong together don't, e.g. decisions for other rows."""

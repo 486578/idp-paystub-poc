@@ -7,7 +7,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict
+from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
 
 _PLAIN_NUMBER = re.compile(r"-?(\d+(\.\d*)?|\.\d+)")
 
@@ -120,6 +120,35 @@ class PaystubEvidence(_Model):
     footnotes: tuple[Footnote, ...]
 
 
+class CheckName(StrEnum):
+    GROUNDING = "grounding"
+    NET = "net"
+    FEDERAL_TAXABLE_WAGES = "federal_taxable_wages"
+    PAYROLL_TAX_GAP = "payroll_tax_gap"
+
+
+class CheckCode(StrEnum):
+    AMOUNT_NOT_IN_DOCUMENT = "amount_not_in_document"
+    TEXT_NOT_IN_DOCUMENT = "text_not_in_document"
+    NET_MISMATCH = "net_mismatch"
+    FEDERAL_TAXABLE_WAGES_MISMATCH = "federal_taxable_wages_mismatch"
+    PAYROLL_TAX_GAP = "payroll_tax_gap"
+
+
+class CheckFlag(_Model):
+    """One finding. `deduction_index` None means it concerns the whole stub."""
+
+    code: CheckCode
+    message: Text
+    deduction_index: Annotated[int, Field(ge=0)] | None = None
+    send_to_review: bool = False
+
+
+class CheckReport(_Model):
+    flags: tuple[CheckFlag, ...]
+    not_run: tuple[CheckName, ...]
+
+
 class DeductionDecision(_Model):
     """The rule engine's verdict on one deduction, with the rule and quoted evidence."""
 
@@ -127,6 +156,9 @@ class DeductionDecision(_Model):
     decision: Decision
     rule_id: RuleId
     evidence: Text
+    # Set when a check moved the rule's decision to needs_review.
+    escalated_from: Decision | None = None
+    escalated_by: CheckCode | None = None
 
 
 class AgiMethod(StrEnum):

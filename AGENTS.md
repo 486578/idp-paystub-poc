@@ -4,6 +4,7 @@
 > - `architecture.md` says **what** we build and why.
 > - This file says **how** we work.
 > - `progress.md` says **where we are**.
+> - [decisionlog.md](decisionlog.md) says **what was decided, why, and who approved it**.
 
 ---
 
@@ -36,6 +37,7 @@ A separate **evaluation harness** (`evaluation/`) runs the component on the 82 s
 7. **Every pre-tax decision is explainable.** It always carries a `rule_id` and the quoted evidence text that triggered it.
 8. **The critic review happens for every feature** (section 6), and **the "break it" phase happens before the POC is called done** (section 7).
 9. **Keep `progress.md` current.** Update it at the end of every work session and every feature.
+10. **Log every decision in `decisionlog.md`.** That covers design, rules, settings, defaults, keywords and process. Record what was decided, why, the alternatives considered and who approved it. Never delete entries; supersede them.
 
 ---
 
@@ -86,6 +88,7 @@ They're declared in `[tool.uv.sources]` in `pyproject.toml`, and `uv.lock` pins 
 idp-paystub-usecase/
 ├── AGENTS.md                 # this file
 ├── progress.md               # status, decisions, open questions, review log
+├── decisionlog.md            # every decision: what, why, alternatives, who approved
 ├── pyproject.toml / uv.lock
 ├── config/default.yaml       # documented default settings
 ├── src/paystub_agi/          # THE COMPONENT (reusable)

@@ -6,11 +6,19 @@ caller supplies those (AGENTS.md section 10.4).
 
 import re
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Literal
 
 import yaml
-from pydantic import AfterValidator, BaseModel, ConfigDict, PositiveInt, ValidationError
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveInt,
+    ValidationError,
+)
 
 from paystub_agi.errors import ConfigError
 from paystub_agi.models import PayFrequency
@@ -168,9 +176,30 @@ class AgiConfig(_Settings):
     default_frequency: PayFrequency | None = None
 
 
+class ChecksConfig(_Settings):
+    """Tolerances and labels for the consistency checks (architecture step 4)."""
+
+    net_tolerance: Annotated[Decimal, Field(ge=0)] = Decimal("0.02")
+    wage_tolerance: Annotated[Decimal, Field(ge=0)] = Decimal("1.00")
+    social_security_rate: Annotated[Decimal, Field(gt=0)] = Decimal("0.062")
+    medicare_rate: Annotated[Decimal, Field(gt=0)] = Decimal("0.0145")
+    social_security_labels: Keywords = ("social security", "oasdi", "soc sec")
+    medicare_labels: Keywords = ("medicare",)
+    # Benefits usually taken before Social Security/Medicare tax (Section 125).
+    cafeteria_plan_names: Keywords = (
+        "medical",
+        "health",
+        "dental",
+        "vision",
+        "hsa",
+        "fsa",
+    )
+
+
 class AnalyzerConfig(_Settings):
     rules: RulesConfig = RulesConfig()
     agi: AgiConfig = AgiConfig()
+    checks: ChecksConfig = ChecksConfig()
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, object]) -> AnalyzerConfig:
