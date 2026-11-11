@@ -50,7 +50,7 @@ rules:
       - tax exempt
       - non taxed
       - no tax
-    posttax_categories: [garnish, garnishment, union dues, charity, charitable]  # R5
+    posttax_categories: [garnish, garnishment, union dues, charity, charitable, child support]  # R5
     pretax_footnote_phrases:                                               # R6
       - pre tax
       - pretax
@@ -83,6 +83,9 @@ rules:
       - fsa
       - hdhp
       - dependent care
+      - transit
+      - parking
+      - commuter
 
 agi:
   # AGI = (gross - one_time - pretax) x periods_per_year + one_time  (reference agi.py)

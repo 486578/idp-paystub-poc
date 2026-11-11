@@ -152,6 +152,16 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q11 | `agi.py` also supports quarterly/annual/one-time frequencies and infers frequency from period dates. OK to update architecture sections 5 and 8.2 to match? | Architecture changes need approval | Yes; `agi.py` is the reference |
 | Q12 | I left the `tax_math_as_evidence` setting out of the config for now. Its "decide" option needs a design: which deductions explain a Social Security gap? (stub_0010 needed a 4-row combination.) `disputed_stubs` belongs in the evaluation config, not the component. OK to update architecture section 7 to match? | Architecture changes need approval | Yes; the gap stays a review flag (F6) |
 | Q13 | One-time pay matches earning labels by whole word ("Overtime 1.5x", "Holiday Bonus" count). Abbreviations like "OT" don't. Add `ot` to the default list? | AGI on stubs that print "OT" | Don't add yet; check the stubs first |
+| Q14 | More default keywords suggested by a public paystub-codes guide (not official; see decisions log 2026-11-11). See the list under the table. | Several of these stop a wrong pre-tax decision | Add group A now; groups B and C after review |
+
+**Q14 proposals:**
+- **A. Stops a wrong "pre-tax":**
+  - R5 `posttax_categories`: `garn` ("GARN" isn't matched by "garnish"), `levy`, `loan` ("401K LOAN" currently reaches R9 as a benefit name), `bankruptcy`, `imputed` (imputed-income offset rows, e.g. stub_0010);
+  - R1 `employer_markers`: `match` ("401K Match" with no ER).
+- **B. Pre-tax markers:** R4 `pretax_markers`: `s125`, `section 125`, `sec 125`. R9 `benefit_names`: `deferred comp`, `dcfsa`, `dcap`, `tsa`.
+- **C. Tax abbreviations for R2 `tax_labels`:** `fwt`, `fed wh`, `ss`, `soc sec`, `swt`, `lit`, `casdi`, `tdi`.
+  - Not `med`: it means Medicare tax on some stubs and medical insurance on others.
+- **Matching limitation:** joined proprietary codes such as "PX401 EEPRE" aren't matched (`eepre` is one word). This goes to the break-it phase.
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -207,6 +217,7 @@ These don't block building; they're **settings** (architecture section 7). The P
 | 2026-11-05 | SOLID principles; nothing environment-specific hard-coded (credentials, model, region, bucket, paths); Pydantic for all model classes | user |
 | 2026-11-05 | All amounts are US dollars; no `money.py` | user |
 | 2026-11-05 | Git local only; reference repo cloned in-repo and git-ignored; answer keys stay out of git | user |
+| 2026-11-11 | Default keywords: `child support` added to R5; `transit`, `parking`, `commuter` added to R9 (still review by default). Source: the epaystubs.net guides. **Not official**, but they cite IRS Publications 15 and 15-B. Background only; the business team stays the authority on rules. | user |
 
 ---
 

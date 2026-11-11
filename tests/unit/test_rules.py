@@ -252,6 +252,15 @@ def test_rules_r5_union_dues_is_not_pretax() -> None:
     assert _decide(_line("Union Dues")).rule_id is RuleId.R5
 
 
+def test_rules_r5_child_support_is_not_pretax() -> None:
+    _assert(
+        _decide(_line("Child Support Order")),
+        Decision.NOT_PRETAX,
+        RuleId.R5,
+        'label "Child Support Order"',
+    )
+
+
 def test_rules_r5_loses_to_r4() -> None:
     assert _decide(_line("Pre-Tax Union Dues")).rule_id is RuleId.R4
 
@@ -394,6 +403,11 @@ def test_rules_r9_benefit_name_follows_setting(
 
 def test_rules_r9_does_not_fire_on_unknown_name() -> None:
     assert _decide(_line("Hospital Indemnity")).rule_id is RuleId.R10
+
+
+@pytest.mark.parametrize("label", ["Transit Pass", "Parking", "Commuter Benefit"])
+def test_rules_r9_commuter_benefits_are_benefit_names(label: str) -> None:
+    assert _decide(_line(label)).rule_id is RuleId.R9
 
 
 def test_rules_r9_loses_to_r8() -> None:

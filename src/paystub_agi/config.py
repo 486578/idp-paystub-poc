@@ -90,6 +90,7 @@ class RuleKeywords(_Settings):
         "union dues",
         "charity",
         "charitable",
+        "child support",
     )
     pretax_footnote_phrases: Keywords = (
         "pre tax",
@@ -125,6 +126,9 @@ class RuleKeywords(_Settings):
         "fsa",
         "hdhp",
         "dependent care",
+        "transit",
+        "parking",
+        "commuter",
     )
 
 
