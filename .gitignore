@@ -28,3 +28,6 @@ docs/paystubs/
 
 # Read-only reference clone
 idp-paystub-model-comparison/
+
+# Local working notes (names of people and synthetic employees)
+summary.md
