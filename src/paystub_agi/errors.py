@@ -7,3 +7,7 @@ class PaystubAgiError(Exception):
 
 class ConfigError(PaystubAgiError):
     """The configuration is missing, unreadable or invalid."""
+
+
+class ClassificationError(PaystubAgiError):
+    """The rule list left a deduction undecided (it needs a catch-all last rule)."""

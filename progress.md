@@ -5,7 +5,7 @@
 
 **Last updated:** 2026-11-11
 **Current phase:** 1. Core logic
-**Next action:** F5 (rule engine R1–R10).
+**Next action:** F6 (checks).
 
 ---
 
@@ -22,7 +22,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F2 | Data models: evidence, decisions, results (Pydantic) | `models.py` | F0 | ✅ | |
 | F3 | Config: `AnalyzerConfig`, YAML loading, defaults, validation; `config/default.yaml` | `config.py`, `errors.py` | F2 | ✅ | |
 | F4 | AGI calculation + answer-key replay test (eval 7a) | `agi.py`, `matching.py`, `evaluation/answer_keys.py` | F2, F3 | ✅ | |
-| F5 | Rule engine R1–R10 | `rules.py` | F2, F3 | ⬜ | |
+| F5 | Rule engine R1–R10 | `rules.py` | F2, F3 | ✅ | |
 | F6 | Checks: grounding, net reconciliation, Social Security/Medicare gap, federal taxable wages | `checks.py` | F2, F3 | ⬜ | |
 | F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ⬜ | |
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ⬜ | |
@@ -78,6 +78,26 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 - `compute_agi(evidence, decisions, AgiConfig)` ports the reference `agi.py` (see the facts below). It adds `agi_if_review_pretax` and `review_total` for `needs_review` rows.
 - `matching.py`: whole-word, case-insensitive phrase matching, shared by AGI and (next) the rules.
 - **7a replay:** `evaluation/answer_keys.py` loads the keys and ports the reference `_is_pretax` exactly. **82/82 keys reproduce `calculated` to the cent**: agi, frequency, source, periods, method, one-time total, pre-tax total and warnings. The keys exercise 21 stubs with pre-tax amounts, 37 with one-time pay and 5 different frequencies.
+
+### F5: Rule engine ✅ (`tests/unit/test_rules.py` 60 tests, `tests/acceptance/test_worked_examples.py` 4 tests)
+- **Design:** each rule is a class with `rule_id` and `apply(line, context) -> Verdict | None`. `classify(evidence, RulesConfig, rules=DEFAULT_RULES)` returns one `DeductionDecision` per row, in printed order. The first rule that answers wins. A custom rule list is supported (open/closed); a list that leaves a row undecided raises `ClassificationError`.
+- **Where each rule looks:**
+
+  | Rule | Looks at |
+  |---|---|
+  | R1 | employer section flag; employer markers in label, code values or heading |
+  | R2 | tax names in the label |
+  | R3 | post-tax markers in label, codes or heading; or a pre-tax column saying "N" |
+  | R4 | pre-tax markers in label, codes or heading; or a pre-tax column saying "Y" |
+  | R5 | always-post-tax categories in the label |
+  | R6 | a row marker whose footnote text has a pre-tax phrase (`asterisk_scope`) |
+  | R7 | EE in the label or codes |
+  | R8 | EMP in the label or codes |
+  | R9 | a benefit name in the label |
+  | R10 | catch-all, `unclear_default` |
+
+- **Pre-tax yes/no column** (confirmed by the business in round 1): two new keyword lists, `column_yes_values` and `column_no_values`.
+- **Tests:** every rule has "fires", "doesn't fire" and "loses to earlier rules" tests, and every setting value is tested. The worked examples stub_0006 and stub_0002 pass end to end with the expected AGIs.
 
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
@@ -161,6 +181,7 @@ These don't block building; they're **settings** (architecture section 7). The P
 | B9 | How is AGI used downstream? | reporting only |
 | B10 | `agi.py` treats pension, accident, life, supplemental, LTD/STD, critical illness, cancer and Aflac as **never** pre-tax. But on stub_0010 the Social Security math suggests Guardian Accident **was** taken out before Social Security tax. Should our rules include `agi.py`'s never-pre-tax list? | R5 keyword list (`posttax_categories`) |
 | B11 | Are "PRE"/"PT" on their own reliable pre-tax markers? E.g. "Pre-Paid Legal" or "PT" meaning part-time. | `pretax_markers` |
+| B12 | Conflicting markers: the heading says "After-Tax" but the row says "Pre-Tax". Today post-tax wins (R3 runs before R4), which keeps AGI higher. Should it be `needs_review` instead? | rule order (architecture change) |
 
 ### Technical questions to verify while building
 | ID | Question | When |
@@ -230,6 +251,18 @@ These don't block building; they're **settings** (architecture section 7). The P
 | 5 | The "exceeds regular pay" warning is only checked for `agi`, not for `agi_if_review_pretax`. | Low | Revisit in F10 if the review range is shown to users. | Open |
 | 6 | Warnings never contain amounts or names, as in the reference. | — | — | OK |
 | 7 | Would the replay catch a broken formula? Yes: 21 keys have pre-tax amounts and 37 have one-time pay, and every key compares agi, method, frequency and warnings exactly. | — | — | OK |
+
+### F5 review (2026-11-11)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | R1's evidence for employer-section rows was just "employer section", without quoting the heading (breaks golden rule 7). | Medium | Failing test first; the evidence now quotes the heading. | Fixed |
+| 2 | The "row has no heading" branch was untested. | Low | Test added; 100% branch coverage. | Fixed |
+| 3 | R1 also checks the heading, so a heading like "Employee/Employer Deductions" would exclude **every** row under it. | Medium | Break-it test; consider checking headings only through the model's `in_employer_section` flag. | Open |
+| 4 | A heading-level post-tax marker beats a row-level pre-tax marker. | Low | B12. | Open |
+| 5 | R6 only looks for pre-tax footnotes. A footnote saying "\* after-tax" is ignored, so the row falls through to later rules. | Low | Break-it phase. | Open |
+| 6 | Text in a label is only matched as words; it can't change rule order. Prompt-injection risk lies in the model **inventing** label text, which F6's grounding check (label words must appear in the OCR) will catch. | — | F6. | Noted |
+| 7 | **Design:** no I/O, config passed in, rules swappable without editing the engine, and the stand-in rule in the tests satisfies the protocol. | — | — | OK |
+| 8 | Evidence strings contain document text. They're part of the result, but must never be logged (AGENTS section 8). | — | Check again in F10. | Noted |
 
 <!-- Template:
 ### F<n> review (date)

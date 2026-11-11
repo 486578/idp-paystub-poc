@@ -51,6 +51,13 @@ def test_config_default_keywords_are_not_empty() -> None:
         assert getattr(keywords, name), name
 
 
+def test_config_pretax_column_values_have_defaults() -> None:
+    keywords = RulesConfig().keywords
+
+    assert keywords.column_yes_values == ("y", "yes", "x", "true")
+    assert keywords.column_no_values == ("n", "no", "false")
+
+
 def test_config_default_yaml_file_equals_built_in_defaults() -> None:
     assert AnalyzerConfig.from_yaml(DEFAULT_YAML) == AnalyzerConfig()
 

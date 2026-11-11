@@ -106,6 +106,9 @@ class RuleKeywords(_Settings):
         "tax deferred",
     )
     uniform_labels: Keywords = ("uniform",)
+    # Values in a column whose header is a pre-tax marker, e.g. "Pre-Tax: Y".
+    column_yes_values: Keywords = ("y", "yes", "x", "true")
+    column_no_values: Keywords = ("n", "no", "false")
     ee_codes: Keywords = ("ee",)
     emp_codes: Keywords = ("emp",)
     benefit_names: Keywords = (

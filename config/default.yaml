@@ -65,6 +65,8 @@ rules:
       - tax exempt
       - tax deferred
     uniform_labels: [uniform]                                              # R6 uniform_only
+    column_yes_values: [y, "yes", x, "true"]                               # R4: "Pre-Tax: Y"
+    column_no_values: [n, "no", "false"]                                   # R3: "Pre-Tax: N"
     ee_codes: [ee]                                                         # R7
     emp_codes: [emp]                                                       # R8
     benefit_names:                                                         # R9
