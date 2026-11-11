@@ -1,0 +1,97 @@
+# Default settings for the paystub component (paystub_agi).
+# Every value here equals the built-in default; a test keeps them in sync.
+# Infrastructure (model, region, credentials, paths) never goes in this file.
+
+rules:
+  # Disputed rules (architecture section 7). Change these when the business answers.
+  bare_benefit_names: needs_review   # R9: pretax | not_pretax | needs_review
+  ee_means: needs_review             # R7: pretax | not_pretax | needs_review
+  emp_means: needs_review            # R8: employer | pretax | needs_review
+  asterisk_scope: any                # R6: any | uniform_only
+  unclear_default: needs_review      # R10: not_pretax | needs_review
+
+  # Case-insensitive, whole-word matching. "pre tax" also matches "Pre-Tax".
+  keywords:
+    employer_markers: [er, err, employer, company paid, co paid]          # R1
+    tax_labels:                                                            # R2
+      - federal income tax
+      - federal withholding
+      - federal tax
+      - fed tax
+      - fed withholding
+      - fit
+      - fitw
+      - social security
+      - oasdi
+      - fica
+      - medicare
+      - state income tax
+      - state tax
+      - sit
+      - local tax
+      - city tax
+      - eit
+      - lst
+      - sdi
+      - sui
+      - suta
+      - pfl
+      - fli
+    posttax_markers: [post tax, posttax, post, after tax, aftertax, roth]  # R3
+    pretax_markers:                                                        # R4
+      - pre tax
+      - pretax
+      - pre
+      - pt
+      - prtx
+      - before tax
+      - tax deferred
+      - tax sheltered
+      - tax exempt
+      - non taxed
+      - no tax
+    posttax_categories: [garnish, garnishment, union dues, charity, charitable]  # R5
+    pretax_footnote_phrases:                                               # R6
+      - pre tax
+      - pretax
+      - before tax
+      - excluded from federal taxable wages
+      - excluded from taxable wages
+      - not taxable
+      - non taxable
+      - nontaxable
+      - section 125
+      - sec 125
+      - tax exempt
+      - tax deferred
+    uniform_labels: [uniform]                                              # R6 uniform_only
+    ee_codes: [ee]                                                         # R7
+    emp_codes: [emp]                                                       # R8
+    benefit_names:                                                         # R9
+      - 401k
+      - 403b
+      - "457"
+      - 457b
+      - tsp
+      - medical
+      - health
+      - dental
+      - vision
+      - hsa
+      - fsa
+      - hdhp
+      - dependent care
+
+agi:
+  # AGI = (gross - one_time - pretax) x periods_per_year + one_time  (reference agi.py)
+  one_time_earnings: [bonus, overtime]
+  periods_per_year:
+    weekly: 52
+    biweekly: 26
+    semimonthly: 24
+    monthly: 12
+    quarterly: 4
+    annual: 1
+    one_time: 1
+  # Used only when no frequency is printed and the period dates don't give one.
+  default_frequency: null

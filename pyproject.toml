@@ -33,6 +33,7 @@ idp-genai = { git = "https://github.com/maximus-idp/idp-genai", branch = "featur
 [tool.pytest.ini_options]
 minversion = "9.1"
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "integration: calls real AWS services or models; opt-in with -m integration",
 ]
@@ -64,8 +65,10 @@ known-first-party = ["paystub_agi"]
 [tool.mypy]
 python_version = "3.14"
 strict = true
+plugins = ["pydantic.mypy"]
 files = [
     "$MYPY_CONFIG_FILE_DIR/src",
+    "$MYPY_CONFIG_FILE_DIR/evaluation",
     "$MYPY_CONFIG_FILE_DIR/tests",
 ]
 

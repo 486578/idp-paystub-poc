@@ -92,6 +92,8 @@ idp-paystub-usecase/
 │   ├── __init__.py           # public API only
 │   ├── models.py             # evidence, decision and result models (Pydantic)
 │   ├── config.py             # AnalyzerConfig + YAML loading
+│   ├── errors.py             # package exception types
+│   ├── matching.py           # whole-word keyword matching (rules + AGI)
 │   ├── agi.py                # AGI formula
 │   ├── rules.py              # rule engine R1–R10
 │   ├── checks.py             # grounding, net, Social Security gap, federal taxable wages
@@ -102,6 +104,7 @@ idp-paystub-usecase/
 ├── evaluation/               # POC harness, NOT part of the component
 ├── tests/
 │   ├── unit/                 # one test file per module; no network
+│   ├── acceptance/           # run against local data (e.g. 82-key AGI replay); skipped if data absent
 │   ├── integration/          # marked @pytest.mark.integration; real AWS/model
 │   └── fixtures/             # small hand-made inputs (no real personal data)
 ├── data/                     # git-ignored: CSVs, downloaded keys/PDFs, saved evidence, results
@@ -148,7 +151,7 @@ Start each feature by listing its behaviours as test names in `progress.md`, the
 
 | Modules | Target |
 |---|---|
-| `models`, `config`, `agi`, `rules`, `checks` | **100% line + branch** |
+| `models`, `config`, `matching`, `agi`, `rules`, `checks` | **100% line + branch** |
 | `reading`, `extraction`, `store`, `analyzer` | **≥ 90% line + branch** (with fakes) |
 
 Coverage is a floor, not the goal. A test that runs code without asserting the outcome doesn't count.

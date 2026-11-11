@@ -3,9 +3,9 @@
 > Status and history of the build. Update at the end of every work session and every feature.
 > Design: [docs/architecture.md](docs/architecture.md). Working rules: [AGENTS.md](AGENTS.md).
 
-**Last updated:** 2026-11-05
+**Last updated:** 2026-11-11
 **Current phase:** 1. Core logic
-**Next action:** start F2 (data models). F0 is done; F1 was dropped (money handling lives in the models).
+**Next action:** F5 (rule engine R1–R10).
 
 ---
 
@@ -19,9 +19,9 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 |---|---|---|---|---|---|
 | F0 | Project scaffold: git, `pyproject.toml` (uv, GitHub sources), ruff/mypy/pytest config, `.gitignore`, empty package, environment tests | repo root | — | ✅ | |
 | F1 | ~~Money parsing module~~ dropped: amounts are always USD; `Decimal` conversion happens in the models (F2) | — | — | — | |
-| F2 | Data models: evidence, decisions, results (Pydantic) | `models.py` | F0 | ⬜ | |
-| F3 | Config: `AnalyzerConfig`, YAML loading, defaults, validation; `config/default.yaml` | `config.py` | F2 | ⬜ | |
-| F4 | AGI calculation + answer-key replay test (eval 7a) | `agi.py` | F2, F3 | ⬜ | |
+| F2 | Data models: evidence, decisions, results (Pydantic) | `models.py` | F0 | ✅ | |
+| F3 | Config: `AnalyzerConfig`, YAML loading, defaults, validation; `config/default.yaml` | `config.py`, `errors.py` | F2 | ✅ | |
+| F4 | AGI calculation + answer-key replay test (eval 7a) | `agi.py`, `matching.py`, `evaluation/answer_keys.py` | F2, F3 | ✅ | |
 | F5 | Rule engine R1–R10 | `rules.py` | F2, F3 | ⬜ | |
 | F6 | Checks: grounding, net reconciliation, Social Security/Medicare gap, federal taxable wages | `checks.py` | F2, F3 | ⬜ | |
 | F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ⬜ | |
@@ -56,6 +56,28 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
   - `idp-genai` `feature/bedrock-mantle` @ `d6a8162`.
 
 **Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (4 passed) coverage ✅ (empty package)
+
+### F2: Data models ✅ (`tests/unit/test_models.py`, 46 tests)
+- **Amounts** (`Money`):
+  - accepted: int, float (converted through `str()`), `Decimal`, plain numeric strings;
+  - rejected: booleans, NaN/infinity, `"$85"`, `"1,234.56"`, `"(85.00)"`, `"N/A"`, empty strings and containers;
+  - negatives are kept.
+- **Evidence models:** `AmountLine`, `CodeValue`, `Footnote`, `DeductionLine` (no pre-tax field; `in_employer_section` required), `PaystubEvidence` (ISO dates only).
+- **Decision models:** `Decision`, `RuleId` (R1–R10), `DeductionDecision` (evidence text required).
+- **AGI result models (added in F4):** `PayFrequency`, `AgiMethod`, `FrequencySource`, `AgiResult`.
+- All models frozen and `extra="forbid"`; the pydantic mypy plugin is enabled.
+
+### F3: Config ✅ (`tests/unit/test_config.py`, 43 tests)
+- **Settings:**
+  - `RulesConfig`: the 5 disputed-rule settings + `RuleKeywords`, 11 keyword lists for R1–R9;
+  - `AgiConfig`: one-time earning keywords, periods per year (all 7 frequencies required, positive), `default_frequency`.
+- **Loading:** `AnalyzerConfig.from_yaml` / `from_mapping`. Every failure raises `ConfigError`: missing file, invalid YAML, Python tags (safe_load), a non-mapping file, unknown keys or bad values.
+- `config/default.yaml` documents every default; a test asserts it equals the built-in defaults.
+
+### F4: AGI ✅ (`tests/unit/test_agi.py` 54 tests, `tests/unit/test_matching.py` 18 tests, `tests/acceptance/test_agi_replay.py` 83 tests)
+- `compute_agi(evidence, decisions, AgiConfig)` ports the reference `agi.py` (see the facts below). It adds `agi_if_review_pretax` and `review_total` for `needs_review` rows.
+- `matching.py`: whole-word, case-insensitive phrase matching, shared by AGI and (next) the rules.
+- **7a replay:** `evaluation/answer_keys.py` loads the keys and ports the reference `_is_pretax` exactly. **82/82 keys reproduce `calculated` to the cent**: agi, frequency, source, periods, method, one-time total, pre-tax total and warnings. The keys exercise 21 stubs with pre-tax amounts, 37 with one-time pay and 5 different frequencies.
 
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
@@ -108,6 +130,8 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q9 | `idp-genai` holds `rpds-py` at `2026.6.3` for licence compliance, but that hold isn't inherited, so our lock has `2026.9.1`. Copy the libraries' version holds into our `pyproject.toml`? | Licence-compliance parity with the libraries | Yes, copy them |
 | Q10 | `summary.md` holds people's names and synthetic employee names. Commit it, or keep it local (git-ignored)? | Data handling | Keep it local |
 | Q11 | `agi.py` also supports quarterly/annual/one-time frequencies and infers frequency from period dates. OK to update architecture sections 5 and 8.2 to match? | Architecture changes need approval | Yes; `agi.py` is the reference |
+| Q12 | I left the `tax_math_as_evidence` setting out of the config for now. Its "decide" option needs a design: which deductions explain a Social Security gap? (stub_0010 needed a 4-row combination.) `disputed_stubs` belongs in the evaluation config, not the component. OK to update architecture section 7 to match? | Architecture changes need approval | Yes; the gap stays a review flag (F6) |
+| Q13 | One-time pay matches earning labels by whole word ("Overtime 1.5x", "Holiday Bonus" count). Abbreviations like "OT" don't. Add `ot` to the default list? | AGI on stubs that print "OT" | Don't add yet; check the stubs first |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -136,6 +160,7 @@ These don't block building; they're **settings** (architecture section 7). The P
 | B8 | When will corrected answer keys be available? | evaluation |
 | B9 | How is AGI used downstream? | reporting only |
 | B10 | `agi.py` treats pension, accident, life, supplemental, LTD/STD, critical illness, cancer and Aflac as **never** pre-tax. But on stub_0010 the Social Security math suggests Guardian Accident **was** taken out before Social Security tax. Should our rules include `agi.py`'s never-pre-tax list? | R5 keyword list (`posttax_categories`) |
+| B11 | Are "PRE"/"PT" on their own reliable pre-tax markers? E.g. "Pre-Paid Legal" or "PT" meaning part-time. | `pretax_markers` |
 
 ### Technical questions to verify while building
 | ID | Question | When |
@@ -177,6 +202,35 @@ These don't block building; they're **settings** (architecture section 7). The P
 | 6 | `summary.md` holds people's and synthetic employee names. | Low (data handling) | Not committed; ask the user (Q10). | Open |
 | 7 | A `-m "not integration"` default in `addopts` could hide integration tests. A command-line `-m integration` overrides it (the later option wins). | — | — | OK |
 
+### F2 review (2026-11-11)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | A non-finite `Decimal` check in `models.py` was dead code, because Pydantic already rejects NaN/infinity. | Low | Removed. A test pins the rejection. | Fixed |
+| 2 | Amount strings with `$`, commas or brackets are rejected, so one bad amount fails the whole stub's evidence. That's deliberate (a clear error, never a wrong number); the prompt (F8) must ask for plain numbers. | Medium | Covered in F8 and the break-it phase. | Accepted |
+| 3 | Labels have no maximum length. | Low | Break-it phase. | Open |
+| 4 | Lines have no page number, so multi-page stubs rely on order only. | Low | Revisit if hand-verification needs it. | Accepted |
+| 5 | The architecture draft had hours and rate on earnings; dropped because nothing uses them (YAGNI). | Low | — | Accepted |
+| 6 | The JSON schema Pydantic generates for `Money` is "number or string". The extraction schema should say "number". | Medium | F8. | Open |
+
+### F3 review (2026-11-11)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | Some default keywords are short and could match unrelated words: `pre` ("Pre-Paid Legal" would read as pre-tax), `pt` (could mean part-time), `er`, `post`. They're whole-word matches and editable in config. | Medium | Break-it tests; business question B11. | Open |
+| 2 | `periods_per_year` is a `dict` inside a frozen model, so a caller could mutate it in place. Pydantic copies the default per instance, so instances don't share it. | Low | — | Accepted |
+| 3 | `tax_math_as_evidence` and `disputed_stubs` from architecture section 7 aren't in the component config. | Medium | Q12. | Open |
+| 4 | Every setting value has an "accepts" test and each setting has a "rejects unknown" test. The YAML security test (a `!!python/object` tag) passes. | — | — | OK |
+
+### F4 review (2026-11-11)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | **Process:** `test_agi.py` was written before `agi.py`, but I didn't run it red before writing the code. Every other red step was run. | Low | Run red every time. | Noted |
+| 2 | An empty keyword matched every text in `contains_any`. | High (silent wrong match) | Failing test first, then a guard. Config also rejects empty keywords. | Fixed |
+| 3 | The printed frequency is normalised by removing all punctuation, while the reference only removes spaces, hyphens and underscores. Ours also accepts e.g. "Bi-Weekly.". The replay isn't affected, because the keys have no printed frequency. | Low | Documented. | Accepted |
+| 4 | One-time detection uses whole-word keyword matching on verbatim labels, while the reference compares a normalised type exactly. Ours is broader ("Overtime 1.5x" counts). | Medium | Q13. | Open |
+| 5 | The "exceeds regular pay" warning is only checked for `agi`, not for `agi_if_review_pretax`. | Low | Revisit in F10 if the review range is shown to users. | Open |
+| 6 | Warnings never contain amounts or names, as in the reference. | — | — | OK |
+| 7 | Would the replay catch a broken formula? Yes: 21 keys have pre-tax amounts and 37 have one-time pay, and every key compares agi, method, frequency and warnings exactly. | — | — | OK |
+
 <!-- Template:
 ### F<n> review (date)
 | # | Finding | Severity | Fix (test first) | Status |
@@ -204,3 +258,7 @@ _None yet._
   - Wrote the architecture doc, AGENTS.md and this file.
   - Environment checked: Python 3.14.8 and uv 0.13.0 are installed; the folder isn't a git repo yet.
   - Received answers Q1–Q8. Completed F0. Read the reference `agi.py` (notes in section 2).
+- **2026-11-11:**
+  - Downloaded the 82 answer keys into `data/answer_keys/`.
+  - Completed F2, F3 and F4; the 82/82 replay passes.
+  - Q9–Q11 are still unanswered. I proceeded without them: dependency holds not copied, `summary.md` not committed, and the architecture doc not yet changed (the code follows `agi.py`).
