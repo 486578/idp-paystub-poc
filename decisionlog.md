@@ -40,6 +40,7 @@
 | DL-032 | 2026-11-13 | Reading | Reading strategy is a setting (`digital_then_ocr` / `ocr_only` / `digital_only`); the caller supplies the OCR engines in order | Superseded by DL-034 |
 | DL-033 | 2026-11-13 | Reading | Page images: at most 3 pages, 144 dpi, greyscale | Active |
 | DL-034 | 2026-11-13 | Reading | `reading.strategy` is an ordered list of reader names, tried in that order | Active |
+| DL-035 | 2026-11-13 | Reading | Textract sync/async is a caller setting (`textract.mode`), built with F11 | Active (planned) |
 
 ---
 
@@ -342,3 +343,14 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Examples:** free only = `[pdfplumber]`; OCR only = `[textract]`; three-step = `[pdfplumber, textract, other_ocr]`.
 - **Why:** the user wants to be able to chain any number of readers.
 - **Approved by:** user.
+
+## DL-035: Textract sync/async is a caller setting
+- **Decision:** the evaluation harness config gets a `textract` section: `mode` (`sync` | `async`), `region` and `staging_bucket`.
+  - `sync`: the reader gets no staging bucket. 1-page local files only; more pages give a clear `ReadingError`.
+  - `async`: the reader gets the staging bucket (upload, read, delete). Any page count.
+  - `async` without a bucket fails at start-up with a clear error.
+  - `s3://` files are always read asynchronously by `idp-ocr`, whatever the mode.
+- **Where:** a harness helper `build_textract(mode, region, staging_bucket)`, built and tested with F11. The component (`src/`) is unchanged: it never builds readers (DL-010, DL-031).
+- **Why:** `idp-ocr` has no mode switch; it decides only on whether it gets a staging bucket. Region and bucket are caller choices.
+- **Alternatives:** a component setting (rejected, because the component doesn't build the reader); `auto` (sync for 1 page, async for more), which is left out unless the stubs turn out to be mixed, because it needs our own page count.
+- **Approved by:** user (build with F11).

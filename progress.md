@@ -28,7 +28,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ⬜ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ⬜ | |
 | F10 | `PaystubAnalyzer` wiring + public API | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
-| F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report | `evaluation/` | F10 | ⬜ | |
+| F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report; Textract `mode: sync \| async` setting (DL-035) | `evaluation/` | F10 | ⬜ | |
 | F12 | "Break it" phase | all | F1–F11 | ⬜ | |
 | F13 | Hand-verification support (~20 stubs: record evidence, then labels) | `evaluation/` | F11 | ⬜ | business answers |
 
@@ -401,3 +401,4 @@ _Phase not started. Items queued from reviews:_
   - The user attached the source document. Read it and recorded its paystub rules (DL-023, DL-025) and new questions Q19–Q24. No code changes yet.
   - User answered Q19–Q23. Implemented, tests first: $0.00 invalid, commission counted once (configurable), printed annual amount as last resort (DL-026). 411 tests pass, 100% coverage, replay still 82/82.
   - Q24 out of scope. Implemented AGI from printed federal taxable wages with a bonus/overtime setting (DL-027). 422 tests pass, 100% coverage, replay 82/82.
+  - Textract sync/async will be a harness setting, built with F11 (DL-035). No code changes.
