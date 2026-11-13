@@ -28,8 +28,11 @@ words, spelling and capitals.
 - Use only this period's amounts (the "Current" or "This Period" column). Never use \
 a year-to-date (YTD) amount. A value printed only as a year-to-date figure counts \
 as not printed.
-- Write every amount as a plain number without "$" or commas, e.g. 1224.70. An \
-amount in brackets, e.g. (85.00), means the same as a minus sign: write -85.00.
+- Write every amount as a plain number without "$" or commas, e.g. 1224.70. Keep \
+a minus sign if one is printed.
+- An amount printed on its own in brackets, e.g. "Medical (85.00)": write the \
+number without the brackets (85.00) and set in_brackets to true for that line. \
+Otherwise in_brackets is false.
 - Write dates as YYYY-MM-DD.
 
 Fields:
@@ -41,7 +44,8 @@ not printed. Don't work it out from the dates.
 Taxable Wages" or "Fed Taxable Gross". When a federal income tax line shows an \
 amount in parentheses after its description and then the tax, e.g. "Federal \
 Income Tax (965.70) 120.00", the amount in parentheses is the federal taxable \
-wages: copy it here as a positive number, and use the other amount for the tax.
+wages: copy it here as a positive number, use the other amount for the tax, and \
+set in_brackets to false on that tax line.
 - annual_amount: a printed yearly pay figure such as "Annual Salary"; never a \
 year-to-date total.
 - earnings: every earnings row with its label and this period's amount.

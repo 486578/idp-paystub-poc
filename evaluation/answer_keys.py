@@ -144,12 +144,13 @@ def _line(deduction: KeyDeduction) -> DeductionLine:
         codes=(),
         markers=(),
         in_employer_section=False,
+        in_brackets=False,
     )
 
 
 def to_evidence(key: AnswerKey) -> PaystubEvidence:
     earnings = tuple(
-        AmountLine(label=kind, amount=getattr(key.amounts, kind))
+        AmountLine(label=kind, amount=getattr(key.amounts, kind), in_brackets=False)
         for kind in _ONE_TIME
         if getattr(key.amounts, kind) is not None
     )

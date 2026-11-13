@@ -43,6 +43,7 @@ def _row(label: str, amount: str | None, heading: str = "Deductions") -> dict[st
         "codes": [],
         "markers": [],
         "in_employer_section": heading == "Benefits",
+        "in_brackets": False,
     }
 
 
@@ -71,6 +72,8 @@ def _evidence(**overrides: Any) -> PaystubEvidence:
         "footnotes": [],
     }
     values.update(overrides)
+    for kind in ("earnings", "taxes"):
+        values[kind] = [{"in_brackets": False, **line} for line in values[kind]]
     return PaystubEvidence.model_validate(values)
 
 
@@ -450,6 +453,83 @@ def test_checks_gap_without_values_is_not_run(overrides: dict[str, Any]) -> None
     report = _run(_gap_evidence(**overrides), document=None)
 
     assert CheckName.PAYROLL_TAX_GAP in report.not_run
+
+
+# --- amounts printed in brackets (DL-037) -------------------------------------------
+
+
+def _bracketed_row(label: str, amount: str) -> dict[str, Any]:
+    return {**_row(label, amount), "in_brackets": True}
+
+
+def test_checks_brackets_none_gives_no_flag() -> None:
+    report = _run(_evidence())
+
+    assert CheckCode.AMOUNT_IN_BRACKETS not in [f.code for f in report.flags]
+    assert CheckName.BRACKETS not in report.not_run
+
+
+@pytest.mark.parametrize(
+    ("overrides", "where"),
+    [
+        (
+            {
+                "earnings": [
+                    {"label": "Regular", "amount": "1760.00", "in_brackets": True}
+                ]
+            },
+            "earnings[0]",
+        ),
+        (
+            {"taxes": [{"label": "Medicare", "amount": "25.52", "in_brackets": True}]},
+            "taxes[0]",
+        ),
+        (
+            {
+                "deductions": [
+                    _row("Dental", "12.00"),
+                    _bracketed_row("Medical", "85.00"),
+                ]
+            },
+            "deductions[1]",
+        ),
+    ],
+)
+def test_checks_brackets_flag_stub_for_review(
+    overrides: dict[str, Any], where: str
+) -> None:
+    report = _run(_evidence(**overrides))
+
+    flags = [f for f in report.flags if f.code is CheckCode.AMOUNT_IN_BRACKETS]
+    assert [(f.deduction_index, f.send_to_review) for f in flags] == [(None, True)]
+    assert where in flags[0].message
+
+
+def test_checks_brackets_flag_each_bracketed_line() -> None:
+    deductions = [_bracketed_row("Medical", "85.00"), _bracketed_row("Dental", "12.00")]
+
+    report = _run(_evidence(deductions=deductions))
+
+    codes = [f.code for f in report.flags]
+    assert codes.count(CheckCode.AMOUNT_IN_BRACKETS) == 2
+
+
+def test_checks_brackets_review_ignores_send_to_review_setting() -> None:
+    evidence = _evidence(deductions=[_bracketed_row("Medical", "85.00")])
+
+    for setting in (False, True):
+        report = _run(evidence, send_to_review=setting)
+        flag = next(f for f in report.flags if f.code is CheckCode.AMOUNT_IN_BRACKETS)
+        assert flag.send_to_review is True
+
+
+def test_checks_brackets_flag_does_not_change_decisions() -> None:
+    evidence = _evidence(deductions=[_bracketed_row("Medical", "85.00")])
+    decided = classify(evidence, RulesConfig())
+
+    report = run_checks(evidence, decided, ChecksConfig(), DOCUMENT)
+
+    assert apply_review(decided, report) == decided
 
 
 # --- custom checks and escalation ---------------------------------------------------

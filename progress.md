@@ -27,7 +27,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ✅ | |
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ✅ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ⬜ | |
-| F10 | `PaystubAnalyzer` wiring + public API | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
+| F10 | `PaystubAnalyzer` wiring + public API; stub status `needs_review` when any flag has `send_to_review` (incl. stub-level, DL-037) | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
 | F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report; Textract `mode: sync \| async` setting (DL-035) | `evaluation/` | F10 | ⬜ | |
 | F12 | "Break it" phase | all | F1–F11 | ⬜ | |
 | F13 | Hand-verification support (~20 stubs: record evidence, then labels) | `evaluation/` | F11 | ⬜ | business answers |
@@ -130,16 +130,17 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 - **API:** `EvidenceExtractor(genai, model=..., config=ExtractionConfig).extract(ReadStub) -> PaystubEvidence`.
   - `wants_images` tells the analyzer (F10) whether to render page images.
   - `genai` is anything shaped like `idp_genai.GenAIService` (the `GenAI` protocol; mypy confirms the real service fits).
-- **Prompt (`TASK`):** copy only, never decide pre-tax or calculate; this period only; year-to-date-only counts as not printed; parentheses after a federal tax description = taxable wages (Q25); amounts as plain numbers, brackets = minus; ISO dates; null when not printed.
+- **Prompt (`TASK`):** copy only, never decide pre-tax or calculate; this period only; year-to-date-only counts as not printed; parentheses after a federal tax description = taxable wages (Q20); a lone bracketed amount is copied without brackets and marked `in_brackets` (DL-037); plain numbers; ISO dates; null when not printed.
+- **Brackets (DL-037):** new required `in_brackets` field on earnings, tax and deduction lines, and a new `BracketsCheck` that marks the whole stub for review (ignores `checks.send_to_review`; decisions unchanged). Tests: models +3, checks +7, extraction +2.
 - **Schema:** generated from `PaystubEvidence`; amounts are "number or null"; no pre-tax field (tested on field names).
 - **Failures** raise `ExtractionError(code)`: `refused`, `truncated`, `invalid_json`, `provider_error`, `schema_invalid`, `rejected_input`. Schema errors name field locations only, and the original error isn't chained, so document values can't reach logs.
 - **Behaviours:** all done (config: defaults, each `send_images` value, unknown value, null/negative temperature, zero/negative tokens; models: Money JSON schema; extraction: every item in the plan). Verified red before green.
 - **Integration (opt-in, not run):** `tests/integration/test_extraction_bedrock.py` reads stub_0006 with the free reader, then calls Bedrock Converse. Needs `PAYSTUB_TEST_AWS_REGION` and `PAYSTUB_TEST_MODEL_ID`.
 
 **Notes:**
-- **ASSUMPTION (Q25):** "an amount in parentheses after a description is taxable wages" is read as a tax line with **two** amounts, e.g. `Federal Income Tax (965.70) 120.00`. A single bracketed amount is treated as money taken out, because many stubs print deductions as `(85.00)`.
+- **ASSUMPTION (Q25), superseded by DL-037:** I had read a lone bracketed amount as money taken out without asking. Now the model records `in_brackets` and the stub goes to review until the business answers.
 
-**Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (515 passed, 2 integration deselected) coverage ✅ (100% line + branch; `extraction.py` 100%)
+**Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (527 passed, 2 integration deselected) coverage ✅ (100% line + branch; `extraction.py` 100%)
 
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
@@ -217,7 +218,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q22 | Commission next to other pay | — | **Answered: configurable, counted once by default.** Implemented (DL-026). |
 | Q23 | Printed annual amount | — | **Answered: yes.** Implemented (DL-026). |
 | Q24 | Several stubs from one employer | — | **Answered: out of scope** (DL-028). |
-| Q25 | **ASSUMPTION:** parentheses = taxable wages only when a tax line shows two amounts, e.g. `Federal Income Tax (965.70) 120.00`. A lone `(85.00)` is money taken out. Correct? | Brackets also commonly mean "deducted" | Yes |
+| Q25 | What does a **lone** bracketed amount mean, e.g. `Medical (85.00)`: money taken out, or taxable wages (source document)? The two-amount tax line `Federal Income Tax (965.70) 120.00` is taxable wages. | Brackets also commonly mean "deducted"; nobody on the project knows | **Open with the business.** Until then such stubs go to review (DL-037). |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -383,6 +384,8 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 7 | Brackets: the prompt says a bracketed amount means minus, except the federal tax line with two amounts (Q25). Amounts are later used as absolute values by the checks and AGI, so a minus sign on a deduction or tax can't change the result. A negative earnings row stays negative, as printed. | — | — | OK |
 | 8 | **Design:** no boto3, model ID or region in `src/`; the service, model ID and settings come from the caller. A real `GenAIService` with a fake `ModelClient` proves the protocol fits and that the OCR text is fenced as untrusted. | — | — | OK |
 | 9 | **Not run:** the Bedrock integration test (costs money). Needs `PAYSTUB_TEST_AWS_REGION` and `PAYSTUB_TEST_MODEL_ID`. | — | Waiting for the user's OK. | Open |
+| 10 | **Process:** the prompt treated a lone bracketed amount as a deduction (minus). That was my own assumption, made without asking (AGENTS rule 1). | Medium | User chose option 3 (DL-037): record `in_brackets`, send the stub to review. Tests first. | Fixed |
+| 11 | Adding a required field could let old "rejected" tests pass for the wrong reason (missing field instead of a bad amount). | Medium (tests) | Money tests now go through a helper that sets `in_brackets`, so they fail only on the amount. | Fixed |
 
 <!-- Template:
 ### F<n> review (date)
@@ -432,3 +435,4 @@ _Phase not started. Items queued from reviews:_
   - Q24 out of scope. Implemented AGI from printed federal taxable wages with a bonus/overtime setting (DL-027). 422 tests pass, 100% coverage, replay 82/82.
   - Textract sync/async will be a harness setting, built with F11 (DL-035). No code changes.
   - Completed F8 (DL-036), tests first: extraction settings, the prompt, the schema with amounts as numbers, and `ExtractionError` with no document values. 515 tests pass, 100% coverage. Bedrock integration test written, not run.
+  - Q25: a lone bracketed amount has no known meaning. Implemented option 3 (DL-037), tests first: `in_brackets` on every line, and a brackets check that sends the stub to review. 527 tests pass, 100% coverage, replay 82/82.

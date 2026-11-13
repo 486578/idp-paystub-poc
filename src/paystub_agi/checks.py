@@ -2,8 +2,8 @@
 
 Checks never change extracted values. They return flags; flags marked
 `send_to_review` move that deduction's decision to `needs_review` through
-`apply_review` (decisionlog DL-018). Each check is a small object, so a new check is
-a new class added to the list.
+`apply_review` (decisionlog DL-018), or, without a row, send the whole stub to
+review. Each check is a small object, so a new check is a new class added to the list.
 """
 
 import re
@@ -24,6 +24,7 @@ from paystub_agi.models import (
     CheckReport,
     Decision,
     DeductionDecision,
+    DeductionLine,
     PaystubEvidence,
     RuleId,
 )
@@ -247,11 +248,39 @@ class PayrollTaxGapCheck:
         )
 
 
+class BracketsCheck:
+    """A lone bracketed amount may be taxable wages or money taken out (DL-037)."""
+
+    name = CheckName.BRACKETS
+
+    def run(self, context: CheckContext) -> tuple[CheckFlag, ...] | None:
+        evidence = context.evidence
+        groups: tuple[tuple[str, Sequence[AmountLine | DeductionLine]], ...] = (
+            ("earnings", evidence.earnings),
+            ("taxes", evidence.taxes),
+            ("deductions", evidence.deductions),
+        )
+        # The whole stub goes to review: what the number is, not its pre-tax status,
+        # is unknown, so the business's no-review setting (DL-022) doesn't apply.
+        return tuple(
+            CheckFlag(
+                code=CheckCode.AMOUNT_IN_BRACKETS,
+                message=f"{what}[{i}] amount is printed in brackets; "
+                "its meaning is unclear (Q25)",
+                send_to_review=True,
+            )
+            for what, lines in groups
+            for i, line in enumerate(lines)
+            if line.in_brackets
+        )
+
+
 DEFAULT_CHECKS: tuple[Check, ...] = (
     GroundingCheck(),
     NetCheck(),
     FederalTaxableWagesCheck(),
     PayrollTaxGapCheck(),
+    BracketsCheck(),
 )
 
 

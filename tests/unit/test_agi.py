@@ -49,6 +49,7 @@ def _decided(label: str, amount: str | None, decision: Decision) -> DeductionDec
         codes=(),
         markers=(),
         in_employer_section=False,
+        in_brackets=False,
     )
     return DeductionDecision(
         line=line, decision=decision, rule_id=RuleId.R9, evidence=label
@@ -56,7 +57,11 @@ def _decided(label: str, amount: str | None, decision: Decision) -> DeductionDec
 
 
 def _earning(label: str, amount: str | None) -> AmountLine:
-    return AmountLine(label=label, amount=None if amount is None else Decimal(amount))
+    return AmountLine(
+        label=label,
+        amount=None if amount is None else Decimal(amount),
+        in_brackets=False,
+    )
 
 
 # --- pay frequency from period dates (ported from the reference) ------------------

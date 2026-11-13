@@ -42,6 +42,7 @@
 | DL-034 | 2026-11-13 | Reading | `reading.strategy` is an ordered list of reader names, tried in that order | Active |
 | DL-035 | 2026-11-13 | Reading | Textract sync/async is a caller setting (`textract.mode`), built with F11 | Active (planned) |
 | DL-036 | 2026-11-13 | Extraction | Extraction settings (images auto, temperature 0, 8192 tokens); no retries in the component; failures raise `ExtractionError` | Active |
+| DL-037 | 2026-11-13 | Extraction / Checks | A lone bracketed amount is recorded (`in_brackets`) and sends the stub to review until its meaning is known | Active (temporary) |
 
 ---
 
@@ -367,3 +368,13 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
   - Handwritten pre-tax notes (Q21) come later, as their own small feature after F10.
 - **Alternatives:** temperature `null`; 4096 tokens; retry once in the component; a 100,000-character cap with control-character cleaning.
 - **Approved by:** user (2026-11-13).
+
+## DL-037: A lone bracketed amount goes to review (temporary)
+- **Problem:** the source document says "an amount in parentheses after a description represents taxable wages". Brackets are also a common way to print money taken out, e.g. `Medical (85.00)`. Nobody on the project knows which meaning applies to a lone bracketed amount, and our two local stubs have no example.
+- **Decision (until the business answers Q25):**
+  - **Two amounts on a tax line**, e.g. `Federal Income Tax (965.70) 120.00`: the bracketed amount is the federal taxable wages (Q20, unchanged).
+  - **A lone bracketed amount**, e.g. `Medical (85.00)`: the model copies the number without brackets (`85.00`) and sets a new field `in_brackets: true` on that line (earnings, taxes and deductions). It no longer turns brackets into a minus sign.
+  - A new check (`brackets`) flags every such line and marks the **stub** for review (`send_to_review`), whatever `checks.send_to_review` says, because the uncertainty is about what the number is, not about pre-tax status. Pre-tax decisions are not changed.
+- **Why:** don't guess; a clear review flag instead of a possibly wrong number.
+- **Supersedes:** my earlier F8 assumption that a lone bracketed amount is simply a deduction (made without asking).
+- **Approved by:** user (2026-11-13, "option 3").

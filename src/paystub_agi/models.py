@@ -90,6 +90,8 @@ class AmountLine(_Model):
 
     label: Text
     amount: Money
+    # Printed on its own in brackets, e.g. (85.00); meaning unknown (Q25, DL-037).
+    in_brackets: bool
 
 
 class CodeValue(_Model):
@@ -113,6 +115,7 @@ class DeductionLine(_Model):
     codes: tuple[CodeValue, ...]
     markers: tuple[Text, ...]
     in_employer_section: bool
+    in_brackets: bool
 
 
 class PaystubEvidence(_Model):
@@ -138,6 +141,7 @@ class CheckName(StrEnum):
     NET = "net"
     FEDERAL_TAXABLE_WAGES = "federal_taxable_wages"
     PAYROLL_TAX_GAP = "payroll_tax_gap"
+    BRACKETS = "brackets"
 
 
 class CheckCode(StrEnum):
@@ -146,6 +150,7 @@ class CheckCode(StrEnum):
     NET_MISMATCH = "net_mismatch"
     FEDERAL_TAXABLE_WAGES_MISMATCH = "federal_taxable_wages_mismatch"
     PAYROLL_TAX_GAP = "payroll_tax_gap"
+    AMOUNT_IN_BRACKETS = "amount_in_brackets"
 
 
 class CheckFlag(_Model):

@@ -30,6 +30,7 @@ def _deduction(**overrides: Any) -> dict[str, Any]:
         "codes": [],
         "markers": [],
         "in_employer_section": False,
+        "in_brackets": False,
     }
     values.update(overrides)
     return values
@@ -45,8 +46,8 @@ def _evidence(**overrides: Any) -> dict[str, Any]:
         "pay_date": "2026-07-17",
         "federal_taxable_wages": None,
         "annual_amount": None,
-        "earnings": [{"label": "Regular", "amount": 1760}],
-        "taxes": [{"label": "Social Security", "amount": 109.12}],
+        "earnings": [{"label": "Regular", "amount": 1760, "in_brackets": False}],
+        "taxes": [{"label": "Social Security", "amount": 109.12, "in_brackets": False}],
         "deductions": [_deduction()],
         "footnotes": [],
     }
@@ -57,39 +58,45 @@ def _evidence(**overrides: Any) -> dict[str, Any]:
 # --- amounts -------------------------------------------------------------------
 
 
+def _amount_line(label: str, amount: object) -> AmountLine:
+    return AmountLine.model_validate(
+        {"label": label, "amount": amount, "in_brackets": False}
+    )
+
+
 def test_models_amount_from_int_is_decimal() -> None:
-    line = AmountLine(label="Regular", amount=1760)
+    line = _amount_line("Regular", 1760)
 
     assert line.amount == Decimal("1760")
     assert isinstance(line.amount, Decimal)
 
 
 def test_models_amount_from_float_keeps_printed_digits() -> None:
-    line = AmountLine(label="Net", amount=1224.7)
+    line = _amount_line("Net", 1224.7)
 
     assert str(line.amount) == "1224.7"
 
 
 def test_models_amount_from_float_noise_is_not_rounded() -> None:
-    line = AmountLine(label="Noise", amount=0.1 + 0.2)
+    line = _amount_line("Noise", 0.1 + 0.2)
 
     assert line.amount == Decimal("0.30000000000000004")
 
 
 def test_models_amount_from_numeric_string_is_decimal() -> None:
-    line = AmountLine(label="Medical", amount="85.00")
+    line = _amount_line("Medical", "85.00")
 
     assert str(line.amount) == "85.00"
 
 
 def test_models_amount_negative_is_kept() -> None:
-    line = AmountLine(label="Health", amount=-87)
+    line = _amount_line("Health", -87)
 
     assert line.amount == Decimal("-87")
 
 
 def test_models_amount_none_is_allowed() -> None:
-    line = AmountLine(label="Uniform", amount=None)
+    line = _amount_line("Uniform", None)
 
     assert line.amount is None
 
@@ -100,17 +107,17 @@ def test_models_amount_none_is_allowed() -> None:
 )
 def test_models_amount_non_numeric_is_rejected(bad: object) -> None:
     with pytest.raises(ValidationError):
-        AmountLine(label="Bad", amount=bad)
+        _amount_line("Bad", bad)
 
 
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
 def test_models_amount_non_finite_float_is_rejected(bad: float) -> None:
     with pytest.raises(ValidationError):
-        AmountLine(label="Bad", amount=bad)
+        _amount_line("Bad", bad)
 
 
 def test_models_amount_decimal_is_kept_as_is() -> None:
-    line = AmountLine(label="Medical", amount=Decimal("85.00"))
+    line = _amount_line("Medical", Decimal("85.00"))
 
     assert str(line.amount) == "85.00"
 
@@ -118,13 +125,13 @@ def test_models_amount_decimal_is_kept_as_is() -> None:
 @pytest.mark.parametrize("bad", [Decimal("NaN"), Decimal("Infinity")])
 def test_models_amount_non_finite_decimal_is_rejected(bad: Decimal) -> None:
     with pytest.raises(ValidationError):
-        AmountLine(label="Bad", amount=bad)
+        _amount_line("Bad", bad)
 
 
 @pytest.mark.parametrize("bad", [[85], {"value": 85}])
 def test_models_amount_container_is_rejected(bad: object) -> None:
     with pytest.raises(ValidationError):
-        AmountLine(label="Bad", amount=bad)
+        _amount_line("Bad", bad)
 
 
 def test_models_money_json_schema_is_number_or_null() -> None:
@@ -158,6 +165,25 @@ def test_models_deduction_without_employer_flag_is_rejected() -> None:
 
     with pytest.raises(ValidationError):
         DeductionLine.model_validate(values)
+
+
+def test_models_deduction_without_brackets_flag_is_rejected() -> None:
+    values = _deduction()
+    del values["in_brackets"]
+
+    with pytest.raises(ValidationError):
+        DeductionLine.model_validate(values)
+
+
+def test_models_amount_line_without_brackets_flag_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        AmountLine.model_validate({"label": "Regular", "amount": 1760})
+
+
+def test_models_amount_line_keeps_brackets_flag() -> None:
+    line = AmountLine(label="Medical", amount=85, in_brackets=True)
+
+    assert line.in_brackets is True
 
 
 def test_models_deduction_with_empty_label_is_rejected() -> None:

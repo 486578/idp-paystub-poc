@@ -34,6 +34,7 @@ def _line(
         codes=tuple(CodeValue(column=c, value=v) for c, v in codes),
         markers=tuple(markers),
         in_employer_section=employer_section,
+        in_brackets=False,
     )
 
 

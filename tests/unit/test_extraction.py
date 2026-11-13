@@ -56,8 +56,8 @@ def _evidence_data(**overrides: Any) -> dict[str, Any]:
         "pay_date": "2026-07-17",
         "federal_taxable_wages": None,
         "annual_amount": None,
-        "earnings": [{"label": "Regular", "amount": 1760.0}],
-        "taxes": [{"label": "Social Security", "amount": 109.12}],
+        "earnings": [{"label": "Regular", "amount": 1760.0, "in_brackets": False}],
+        "taxes": [{"label": "Social Security", "amount": 109.12, "in_brackets": False}],
         "deductions": [
             {
                 "label": "Medical",
@@ -66,6 +66,7 @@ def _evidence_data(**overrides: Any) -> dict[str, Any]:
                 "codes": [],
                 "markers": [],
                 "in_employer_section": False,
+                "in_brackets": False,
             }
         ],
         "footnotes": [],
@@ -200,6 +201,7 @@ def test_extraction_schema_has_no_pretax_field() -> None:
         "plain number",
         "yyyy-mm-dd",
         "do not decide",
+        "in_brackets",  # DL-037
     ],
 )
 def test_extraction_prompt_contains(phrase: str) -> None:
@@ -208,6 +210,14 @@ def test_extraction_prompt_contains(phrase: str) -> None:
     _extractor(genai).extract(_stub())
 
     assert phrase in genai.calls[0]["task"].lower()
+
+
+def test_extraction_prompt_does_not_turn_brackets_into_minus() -> None:
+    genai = FakeGenAI()
+
+    _extractor(genai).extract(_stub())
+
+    assert "-85.00" not in genai.calls[0]["task"]
 
 
 # --- the answer ----------------------------------------------------------------------

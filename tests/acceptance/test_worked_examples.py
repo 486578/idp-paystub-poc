@@ -20,7 +20,12 @@ def _row(label: str, amount: str, heading: str, **extra: Any) -> dict[str, Any]:
         "codes": [],
         "markers": extra.get("markers", []),
         "in_employer_section": extra.get("employer", False),
+        "in_brackets": False,
     }
+
+
+def _line(label: str, amount: str) -> dict[str, Any]:
+    return {"label": label, "amount": amount, "in_brackets": False}
 
 
 STUB_0006 = PaystubEvidence.model_validate(
@@ -33,11 +38,11 @@ STUB_0006 = PaystubEvidence.model_validate(
         "pay_date": "2026-07-17",
         "federal_taxable_wages": None,
         "annual_amount": None,
-        "earnings": [{"label": "Regular", "amount": "1760.00"}],
+        "earnings": [_line("Regular", "1760.00")],
         "taxes": [
-            {"label": "Federal Income Tax", "amount": "158.40"},
-            {"label": "Social Security", "amount": "109.12"},
-            {"label": "Medicare", "amount": "25.52"},
+            _line("Federal Income Tax", "158.40"),
+            _line("Social Security", "109.12"),
+            _line("Medicare", "25.52"),
         ],
         "deductions": [
             _row("Medical", "85.00", "Deductions"),
@@ -59,7 +64,7 @@ STUB_0002 = PaystubEvidence.model_validate(
         "pay_date": None,
         "federal_taxable_wages": "965.70",
         "annual_amount": None,
-        "earnings": [{"label": "Regular", "amount": "1052.70"}],
+        "earnings": [_line("Regular", "1052.70")],
         "taxes": [],
         "deductions": [_row("Health", "-87.00", "Deductions", markers=["*"])],
         "footnotes": [{"marker": "*", "text": "Excluded from federal taxable wages"}],
