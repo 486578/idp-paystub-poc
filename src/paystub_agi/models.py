@@ -7,7 +7,14 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    WithJsonSchema,
+)
 
 _PLAIN_NUMBER = re.compile(r"-?(\d+(\.\d*)?|\.\d+)")
 
@@ -35,8 +42,12 @@ def _not_blank(value: str) -> str:
     return value
 
 
-# Pydantic itself rejects NaN and infinite Decimals.
-Money = Annotated[Decimal | None, BeforeValidator(_to_money)]
+# Pydantic itself rejects NaN and infinite Decimals. The model is asked for numbers.
+Money = Annotated[
+    Decimal | None,
+    BeforeValidator(_to_money),
+    WithJsonSchema({"anyOf": [{"type": "number"}, {"type": "null"}]}),
+]
 Text = Annotated[str, AfterValidator(_not_blank)]
 
 

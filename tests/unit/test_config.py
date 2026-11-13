@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from paystub_agi.config import AgiConfig, AnalyzerConfig, ChecksConfig, RulesConfig
+from paystub_agi.config import (
+    AgiConfig,
+    AnalyzerConfig,
+    ChecksConfig,
+    ExtractionConfig,
+    RulesConfig,
+)
 from paystub_agi.errors import ConfigError
 from paystub_agi.models import PayFrequency
 
@@ -257,6 +263,47 @@ def test_config_checks_number_must_be_non_negative(setting: str, bad: object) ->
 def test_config_checks_rate_must_not_be_zero(setting: str) -> None:
     with pytest.raises(ConfigError, match=setting):
         AnalyzerConfig.from_mapping({"checks": {setting: 0}})
+
+
+# --- extraction settings -------------------------------------------------------------
+
+
+def test_config_extraction_defaults() -> None:
+    extraction = AnalyzerConfig().extraction
+
+    assert extraction == ExtractionConfig()
+    assert extraction.send_images == "auto"
+    assert extraction.temperature == 0
+    assert extraction.max_output_tokens == 8192
+
+
+@pytest.mark.parametrize("value", ["auto", "never"])
+def test_config_extraction_send_images_accepts(value: str) -> None:
+    config = AnalyzerConfig.from_mapping({"extraction": {"send_images": value}})
+
+    assert config.extraction.send_images == value
+
+
+def test_config_extraction_send_images_rejects_unknown() -> None:
+    with pytest.raises(ConfigError, match="send_images"):
+        AnalyzerConfig.from_mapping({"extraction": {"send_images": "always"}})
+
+
+def test_config_extraction_temperature_accepts_null() -> None:
+    config = AnalyzerConfig.from_mapping({"extraction": {"temperature": None}})
+
+    assert config.extraction.temperature is None
+
+
+def test_config_extraction_temperature_must_not_be_negative() -> None:
+    with pytest.raises(ConfigError, match="temperature"):
+        AnalyzerConfig.from_mapping({"extraction": {"temperature": -0.1}})
+
+
+@pytest.mark.parametrize("bad", [0, -1])
+def test_config_extraction_max_output_tokens_must_be_positive(bad: int) -> None:
+    with pytest.raises(ConfigError, match="max_output_tokens"):
+        AnalyzerConfig.from_mapping({"extraction": {"max_output_tokens": bad}})
 
 
 # --- loading ---------------------------------------------------------------------------

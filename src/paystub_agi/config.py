@@ -65,6 +65,16 @@ class ReadingConfig(_Settings):
     grayscale: bool = True
 
 
+class ExtractionConfig(_Settings):
+    """How the model is asked (DL-036). The model ID comes from the caller."""
+
+    # auto: page images only if the caller's model accepts images.
+    send_images: Literal["auto", "never"] = "auto"
+    # None leaves it to the model; some models reject a temperature.
+    temperature: Annotated[float, Field(ge=0)] | None = 0
+    max_output_tokens: PositiveInt = 8192
+
+
 class RuleKeywords(_Settings):
     """Words the rules look for. Matching is case-insensitive, on whole words."""
 
@@ -231,6 +241,7 @@ class ChecksConfig(_Settings):
 
 class AnalyzerConfig(_Settings):
     reading: ReadingConfig = ReadingConfig()
+    extraction: ExtractionConfig = ExtractionConfig()
     rules: RulesConfig = RulesConfig()
     agi: AgiConfig = AgiConfig()
     checks: ChecksConfig = ChecksConfig()

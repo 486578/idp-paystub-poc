@@ -41,6 +41,7 @@
 | DL-033 | 2026-11-13 | Reading | Page images: at most 3 pages, 144 dpi, greyscale | Active |
 | DL-034 | 2026-11-13 | Reading | `reading.strategy` is an ordered list of reader names, tried in that order | Active |
 | DL-035 | 2026-11-13 | Reading | Textract sync/async is a caller setting (`textract.mode`), built with F11 | Active (planned) |
+| DL-036 | 2026-11-13 | Extraction | Extraction settings (images auto, temperature 0, 8192 tokens); no retries in the component; failures raise `ExtractionError` | Active |
 
 ---
 
@@ -354,3 +355,15 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Why:** `idp-ocr` has no mode switch; it decides only on whether it gets a staging bucket. Region and bucket are caller choices.
 - **Alternatives:** a component setting (rejected, because the component doesn't build the reader); `auto` (sync for 1 page, async for more), which is left out unless the stubs turn out to be mixed, because it needs our own page count.
 - **Approved by:** user (build with F11).
+
+## DL-036: Extraction design (F8)
+- **Decision:**
+  - New `extraction` settings: `send_images: auto | never` (default `auto`: images only if the model takes them), `temperature` (default `0`, `null` = model default), `max_output_tokens` (default `8192`).
+  - The **model ID is passed in by the caller** with the `idp-genai` service, never in config or code.
+  - The schema sent to the model is generated from `PaystubEvidence` (one source of truth); amounts appear as "number or null".
+  - **No retries in the component.** The caller configures retries (e.g. adaptive mode, attempt count) on the boto3 client/session it passes to `idp-genai`. A model failure (refused, cut off, invalid JSON, or JSON that doesn't fit the schema) raises `ExtractionError` with a `code`; never a guessed value.
+  - Error messages never contain document values: schema errors list field locations only, and the original exception isn't chained.
+  - **No extra text cleaning or size cap** before the call. The OCR text is still fenced as untrusted by `idp-genai`.
+  - Handwritten pre-tax notes (Q21) come later, as their own small feature after F10.
+- **Alternatives:** temperature `null`; 4096 tokens; retry once in the component; a 100,000-character cap with control-character cleaning.
+- **Approved by:** user (2026-11-13).

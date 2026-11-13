@@ -5,7 +5,7 @@
 
 **Last updated:** 2026-11-13
 **Current phase:** 1. Core logic
-**Next action:** F8 (evidence extraction).
+**Next action:** F9 (evidence store).
 
 ---
 
@@ -25,7 +25,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F5 | Rule engine R1–R10 | `rules.py` | F2, F3 | ✅ | |
 | F6 | Checks: grounding, net reconciliation, Social Security/Medicare gap, federal taxable wages | `checks.py` | F2, F3 | ✅ | |
 | F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ✅ | |
-| F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ⬜ | |
+| F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ✅ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ⬜ | |
 | F10 | `PaystubAnalyzer` wiring + public API | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
 | F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report; Textract `mode: sync \| async` setting (DL-035) | `evaluation/` | F10 | ⬜ | |
@@ -126,6 +126,21 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 - **Errors:** every library failure becomes `ReadingError` (with the library's reason code where there is one).
 - **Real check (free, local):** stub_0006 and stub_0010 both read with pdfplumber, tables found (2 and 6), and all checked amounts present in the text.
 
+### F8: Evidence extraction ✅ (DL-036; `tests/unit/test_extraction.py` 36 tests; config +7, models +1)
+- **API:** `EvidenceExtractor(genai, model=..., config=ExtractionConfig).extract(ReadStub) -> PaystubEvidence`.
+  - `wants_images` tells the analyzer (F10) whether to render page images.
+  - `genai` is anything shaped like `idp_genai.GenAIService` (the `GenAI` protocol; mypy confirms the real service fits).
+- **Prompt (`TASK`):** copy only, never decide pre-tax or calculate; this period only; year-to-date-only counts as not printed; parentheses after a federal tax description = taxable wages (Q25); amounts as plain numbers, brackets = minus; ISO dates; null when not printed.
+- **Schema:** generated from `PaystubEvidence`; amounts are "number or null"; no pre-tax field (tested on field names).
+- **Failures** raise `ExtractionError(code)`: `refused`, `truncated`, `invalid_json`, `provider_error`, `schema_invalid`, `rejected_input`. Schema errors name field locations only, and the original error isn't chained, so document values can't reach logs.
+- **Behaviours:** all done (config: defaults, each `send_images` value, unknown value, null/negative temperature, zero/negative tokens; models: Money JSON schema; extraction: every item in the plan). Verified red before green.
+- **Integration (opt-in, not run):** `tests/integration/test_extraction_bedrock.py` reads stub_0006 with the free reader, then calls Bedrock Converse. Needs `PAYSTUB_TEST_AWS_REGION` and `PAYSTUB_TEST_MODEL_ID`.
+
+**Notes:**
+- **ASSUMPTION (Q25):** "an amount in parentheses after a description is taxable wages" is read as a tax line with **two** amounts, e.g. `Federal Income Tax (965.70) 120.00`. A single bracketed amount is treated as money taken out, because many stubs print deductions as `(85.00)`.
+
+**Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (515 passed, 2 integration deselected) coverage ✅ (100% line + branch; `extraction.py` 100%)
+
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
 - **Formula:** `AGI = (gross − one_time − pretax) × periods + one_time`, in `Decimal`, rounded **once at the end** to cents with `ROUND_HALF_UP`.
@@ -202,6 +217,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q22 | Commission next to other pay | — | **Answered: configurable, counted once by default.** Implemented (DL-026). |
 | Q23 | Printed annual amount | — | **Answered: yes.** Implemented (DL-026). |
 | Q24 | Several stubs from one employer | — | **Answered: out of scope** (DL-028). |
+| Q25 | **ASSUMPTION:** parentheses = taxable wages only when a tax line shows two amounts, e.g. `Federal Income Tax (965.70) 120.00`. A lone `(85.00)` is money taken out. Correct? | Brackets also commonly mean "deducted" | Yes |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -355,6 +371,19 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 7 | **Design:** no AWS client or bucket name in `src/`. Readers, downloader and renderer are passed in; stand-ins satisfy the library's protocols. | — | — | OK |
 | 8 | **Not run:** the Textract integration test (costs money). Needs `PAYSTUB_TEST_AWS_REGION` (and optionally `PAYSTUB_TEST_STAGING_BUCKET`). | — | Waiting for the user's OK. | Open |
 
+### F8 review (2026-11-13)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | A schema error from Pydantic carries the model's values (document text) in its message and input. Chaining it would put them in tracebacks and logs. | High (data in logs) | Failing test first; the error now lists field locations and error types only, and is raised outside the handler, so nothing is chained. | Fixed |
+| 2 | The first "no pre-tax field" test searched the whole schema text and matched a docstring ("deliberately has no pre-tax field"), not a field. | Low (test checked the wrong thing) | Test now walks field names only. | Fixed |
+| 3 | Model docstrings become `description`s in the schema the model sees, so editing a docstring changes the prompt. | Low | Accepted; the descriptions are accurate. Keep in mind when editing `models.py`. | Accepted |
+| 4 | The schema uses `$defs`/`$ref` (Pydantic's default). Some providers' tool schemas may not accept references. | Medium | Unknown until a real call; the opt-in integration test will show it. Inline the references only if needed. | Open |
+| 5 | One bad value (e.g. a date as `07/01/2026`, or an extra field) fails the whole stub with `schema_invalid`. That's deliberate (a clear error, never a wrong number); the prompt asks for ISO dates and the schema forbids extra fields. | Medium | Measure in the evaluation (F11). | Accepted |
+| 6 | Temperature `0` is rejected by some newer models; they'll fail with `provider_error`. | Low | Setting `temperature: null` (DL-036). | Accepted |
+| 7 | Brackets: the prompt says a bracketed amount means minus, except the federal tax line with two amounts (Q25). Amounts are later used as absolute values by the checks and AGI, so a minus sign on a deduction or tax can't change the result. A negative earnings row stays negative, as printed. | — | — | OK |
+| 8 | **Design:** no boto3, model ID or region in `src/`; the service, model ID and settings come from the caller. A real `GenAIService` with a fake `ModelClient` proves the protocol fits and that the OCR text is fenced as untrusted. | — | — | OK |
+| 9 | **Not run:** the Bedrock integration test (costs money). Needs `PAYSTUB_TEST_AWS_REGION` and `PAYSTUB_TEST_MODEL_ID`. | — | Waiting for the user's OK. | Open |
+
 <!-- Template:
 ### F<n> review (date)
 | # | Finding | Severity | Fix (test first) | Status |
@@ -402,3 +431,4 @@ _Phase not started. Items queued from reviews:_
   - User answered Q19–Q23. Implemented, tests first: $0.00 invalid, commission counted once (configurable), printed annual amount as last resort (DL-026). 411 tests pass, 100% coverage, replay still 82/82.
   - Q24 out of scope. Implemented AGI from printed federal taxable wages with a bonus/overtime setting (DL-027). 422 tests pass, 100% coverage, replay 82/82.
   - Textract sync/async will be a harness setting, built with F11 (DL-035). No code changes.
+  - Completed F8 (DL-036), tests first: extraction settings, the prompt, the schema with amounts as numbers, and `ExtractionError` with no document values. 515 tests pass, 100% coverage. Bedrock integration test written, not run.

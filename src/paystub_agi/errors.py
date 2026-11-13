@@ -23,3 +23,11 @@ class ReadingError(PaystubAgiError):
     def __init__(self, message: str, *, code: str | None = None) -> None:
         super().__init__(message)
         self.code = code
+
+
+class ExtractionError(PaystubAgiError):
+    """The model gave no usable evidence. `code` says why, e.g. `schema_invalid`."""
+
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code

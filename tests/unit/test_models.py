@@ -127,6 +127,12 @@ def test_models_amount_container_is_rejected(bad: object) -> None:
         AmountLine(label="Bad", amount=bad)
 
 
+def test_models_money_json_schema_is_number_or_null() -> None:
+    schema = AmountLine.model_json_schema()["properties"]["amount"]
+
+    assert schema["anyOf"] == [{"type": "number"}, {"type": "null"}]
+
+
 # --- deduction lines -------------------------------------------------------------
 
 
