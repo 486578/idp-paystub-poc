@@ -45,6 +45,25 @@ def test_config_agi_defaults_match_reference() -> None:
     }
 
 
+def test_config_commission_defaults_follow_user_decision() -> None:
+    agi = AgiConfig()
+
+    assert agi.commission_earnings == ("commission",)
+    assert agi.commission_with_other_pay == "one_time"
+
+
+@pytest.mark.parametrize("value", ["one_time", "regular"])
+def test_config_commission_with_other_pay_accepts(value: str) -> None:
+    config = AnalyzerConfig.from_mapping({"agi": {"commission_with_other_pay": value}})
+
+    assert config.agi.commission_with_other_pay == value
+
+
+def test_config_commission_with_other_pay_rejects_unknown() -> None:
+    with pytest.raises(ConfigError, match="commission_with_other_pay"):
+        AnalyzerConfig.from_mapping({"agi": {"commission_with_other_pay": "bonus"}})
+
+
 def test_config_default_keywords_are_not_empty() -> None:
     keywords = RulesConfig().keywords
 

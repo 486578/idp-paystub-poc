@@ -55,6 +55,7 @@ def _evidence(**overrides: Any) -> PaystubEvidence:
         "period_end": "2026-07-14",
         "pay_date": None,
         "federal_taxable_wages": None,
+        "annual_amount": None,
         "earnings": [{"label": "Regular", "amount": "1760.00"}],
         "taxes": [
             {"label": "Federal Income Tax", "amount": "158.40"},
@@ -125,7 +126,12 @@ def test_checks_grounding_flags_deduction_amount_missing_from_document() -> None
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("gross", "1700.00"), ("net", "1300.00"), ("federal_taxable_wages", "999.99")],
+    [
+        ("gross", "1700.00"),
+        ("net", "1300.00"),
+        ("federal_taxable_wages", "999.99"),
+        ("annual_amount", "45000.00"),
+    ],
 )
 def test_checks_grounding_flags_stub_amount_missing_from_document(
     field: str, value: str

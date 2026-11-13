@@ -44,6 +44,7 @@ def _evidence(**overrides: Any) -> dict[str, Any]:
         "period_end": "2026-07-14",
         "pay_date": "2026-07-17",
         "federal_taxable_wages": None,
+        "annual_amount": None,
         "earnings": [{"label": "Regular", "amount": 1760}],
         "taxes": [{"label": "Social Security", "amount": 109.12}],
         "deductions": [_deduction()],
@@ -209,6 +210,14 @@ def test_models_evidence_extra_field_is_rejected() -> None:
 def test_models_evidence_missing_required_list_is_rejected() -> None:
     values = _evidence()
     del values["deductions"]
+
+    with pytest.raises(ValidationError):
+        PaystubEvidence.model_validate(values)
+
+
+def test_models_evidence_requires_annual_amount_even_if_null() -> None:
+    values = _evidence()
+    del values["annual_amount"]
 
     with pytest.raises(ValidationError):
         PaystubEvidence.model_validate(values)

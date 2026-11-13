@@ -111,6 +111,7 @@ class GroundingCheck:
         amount(evidence.gross, "gross")
         amount(evidence.net, "net")
         amount(evidence.federal_taxable_wages, "federal_taxable_wages")
+        amount(evidence.annual_amount, "annual_amount")
         lines(evidence.earnings, "earnings")
         lines(evidence.taxes, "taxes")
         for i, row in enumerate(evidence.deductions):

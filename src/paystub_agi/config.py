@@ -163,6 +163,10 @@ class AgiConfig(_Settings):
     """AGI parameters; defaults reproduce the reference `agi.py`."""
 
     one_time_earnings: Keywords = ("bonus", "overtime")
+    # Source doc: commission alone is regular pay; next to other pay it goes in
+    # the bonus column. "one_time" counts it once instead of annualising it.
+    commission_earnings: Keywords = ("commission",)
+    commission_with_other_pay: Literal["one_time", "regular"] = "one_time"
     periods_per_year: Annotated[
         dict[PayFrequency, PositiveInt], AfterValidator(_every_frequency)
     ] = {

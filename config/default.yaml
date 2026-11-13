@@ -90,6 +90,9 @@ rules:
 agi:
   # AGI = (gross - one_time - pretax) x periods_per_year + one_time  (reference agi.py)
   one_time_earnings: [bonus, overtime]
+  # Source doc: commission alone is regular pay; with other pay it's in the bonus column.
+  commission_earnings: [commission]
+  commission_with_other_pay: one_time   # one_time (counted once) | regular (annualised)
   periods_per_year:
     weekly: 52
     biweekly: 26

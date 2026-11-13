@@ -114,6 +114,8 @@ class PaystubEvidence(_Model):
     period_end: date | None
     pay_date: date | None
     federal_taxable_wages: Money
+    # A printed yearly figure, e.g. "Annual Salary"; never a year-to-date total.
+    annual_amount: Money
     earnings: tuple[AmountLine, ...]
     taxes: tuple[AmountLine, ...]
     deductions: tuple[DeductionLine, ...]
@@ -163,7 +165,7 @@ class DeductionDecision(_Model):
 
 class AgiMethod(StrEnum):
     GROSS_LESS_PRETAX = "gross_less_pretax"
-    ONE_TIME_ONLY = "one_time_only"
+    ANNUAL_AMOUNT = "annual_amount"
 
 
 class FrequencySource(StrEnum):
@@ -185,4 +187,6 @@ class AgiResult(_Model):
     one_time_total: Decimal
     pretax_total: Decimal
     review_total: Decimal
+    # Source doc: $0.00 gross or taxable wages is invalid proof of income.
+    invalid_proof_of_income: bool = False
     warnings: tuple[str, ...]

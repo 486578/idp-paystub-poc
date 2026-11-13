@@ -32,6 +32,7 @@ STUB_0006 = PaystubEvidence.model_validate(
         "period_end": "2026-07-14",
         "pay_date": "2026-07-17",
         "federal_taxable_wages": None,
+        "annual_amount": None,
         "earnings": [{"label": "Regular", "amount": "1760.00"}],
         "taxes": [
             {"label": "Federal Income Tax", "amount": "158.40"},
@@ -57,6 +58,7 @@ STUB_0002 = PaystubEvidence.model_validate(
         "period_end": None,
         "pay_date": None,
         "federal_taxable_wages": "965.70",
+        "annual_amount": None,
         "earnings": [{"label": "Regular", "amount": "1052.70"}],
         "taxes": [],
         "deductions": [_row("Health", "-87.00", "Deductions", markers=["*"])],

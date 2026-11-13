@@ -30,7 +30,8 @@
 | DL-022 | 2026-11-13 | Checks | Checks flag only by default; moving rows to review is opt-in (`send_to_review`) | Active |
 | DL-023 | 2026-11-13 | Rules | Source of truth: KnowledgeShare doc 113287 "Income Types List", section "Pay stubs (US)" | Active |
 | DL-024 | 2026-11-13 | AGI | When federal taxable wages are printed, AGI comes from that number; otherwise from gross | Approved, not implemented |
-| DL-025 | 2026-11-13 | Rules | Paystub rules from the source document that the design must add (see entry) | Proposed |
+| DL-025 | 2026-11-13 | Rules | Paystub rules from the source document that the design must add (see entry) | Active (items 1–6); item 7 pending |
+| DL-026 | 2026-11-13 | AGI | Commission next to other pay is counted once (configurable); $0.00 pay is invalid; printed annual amount is the last resort | Active |
 
 ---
 
@@ -231,4 +232,27 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 | 7 | **Several valid stubs from one source** are averaged, then multiplied by the pay frequency. | Out of scope for the one-stub component; the caller could do it later. |
 
 - **Contrast to note:** for **letters** (employer, explaining income, retirement, self-employment), the document says to remove any pre-tax deduction, "including items such as medical insurance with no pre-tax label". That rule is for letters, not paystubs; for paystubs the business answer is that unmarked items are post-tax (DL-021).
-- **Approved by:** pending.
+- **User decisions (2026-11-13):**
+  - 1 parentheses = taxable wages: **yes** (extraction, F8);
+  - 2 $0.00 = invalid: **yes**;
+  - 3 handwritten notes: **agreed**, low priority (F8 and a new rule);
+  - 4 annual amount: **yes**;
+  - 5 commission: **configurable, counted once by default**;
+  - 7 averaging: explanation requested.
+- **Approved by:** user.
+
+## DL-026: AGI changes from the source document (implemented)
+- **$0.00 is invalid (item 2):**
+  - if printed gross or federal taxable wages are $0.00 (anything under one cent), AGI is `None`, `invalid_proof_of_income` is true, and the warning says so;
+  - this **replaces** the reference's "one-time only" method (gross 0 with a bonus), which no longer exists;
+  - none of the 82 keys used it.
+- **Commission (item 5):**
+  - `agi.commission_with_other_pay: one_time` (default) counts commission once when any other earning line has a non-zero amount; commission alone stays regular pay;
+  - `regular` restores the reference behaviour;
+  - labels come from `agi.commission_earnings` (default `commission`).
+- **Annual amount (item 4):**
+  - a new evidence field `annual_amount` holds a printed yearly figure, never year-to-date;
+  - it's used, as is, when the frequency can't be found from the stub or gross is missing;
+  - it's checked **before** the caller's `default_frequency`, because a printed figure beats a configured guess.
+- **Replay:** still 82/82. The answer-key adapter doesn't pass commission or an annual amount, so it keeps reproducing the reference.
+- **Approved by:** user.

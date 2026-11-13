@@ -48,6 +48,7 @@ def _evidence(
         period_end=None,
         pay_date=None,
         federal_taxable_wages=None,
+        annual_amount=None,
         earnings=(),
         taxes=(),
         deductions=tuple(lines),

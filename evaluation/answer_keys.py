@@ -161,6 +161,7 @@ def to_evidence(key: AnswerKey) -> PaystubEvidence:
         period_end=key.period.end_date,
         pay_date=key.period.pay_date,
         federal_taxable_wages=None,
+        annual_amount=None,
         earnings=earnings,
         taxes=(),
         deductions=tuple(_line(d) for d in key.deductions),

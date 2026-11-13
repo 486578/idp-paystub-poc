@@ -1,11 +1,13 @@
-"""Annual AGI from one paystub, ported from the reference `agi.py`.
+"""Annual AGI from one paystub, based on the reference `agi.py`.
 
 AGI = (gross - one_time - pretax) * periods_per_year + one_time, in `Decimal`,
-rounded half up to cents once at the end.
+rounded half up to cents once at the end. Departures from the reference follow the
+source document (decisionlog DL-025): $0.00 pay is invalid, commission next to other
+pay is one-time, and a printed annual amount is the last resort.
 """
 
 import calendar
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Protocol
@@ -25,8 +27,6 @@ from paystub_agi.models import (
 
 _CENT = Decimal("0.01")
 _ZERO = Decimal("0")
-# Below one cent counts as "no regular pay", as in the reference.
-_NO_REGULAR_PAY = Decimal("0.01")
 
 _FREQUENCY_ALIASES = {
     "weekly": PayFrequency.WEEKLY,
@@ -42,7 +42,7 @@ _FREQUENCY_ALIASES = {
 
 _NO_FREQUENCY = "Pay frequency could not be determined"
 _NO_GROSS = "No gross pay"
-_NO_PAY = "No regular pay and no one-time earnings"
+_ZERO_PAY = "Gross pay or taxable wages are $0.00"
 _EXCEEDS = "One-time earnings and pre-tax deductions exceed regular pay"
 _NO_AMOUNT = "A deduction counted for AGI has no amount"
 
@@ -82,8 +82,8 @@ def infer_pay_frequency(start: date | None, end: date | None) -> PayFrequency | 
     return None
 
 
-def _resolve_frequency(
-    evidence: PaystubEvidence, config: AgiConfig
+def _printed_or_inferred_frequency(
+    evidence: PaystubEvidence,
 ) -> tuple[PayFrequency, FrequencySource] | None:
     printed = "".join(
         ch for ch in (evidence.pay_frequency or "").lower() if ch.isalnum()
@@ -93,17 +93,26 @@ def _resolve_frequency(
     inferred = infer_pay_frequency(evidence.period_start, evidence.period_end)
     if inferred is not None:
         return inferred, FrequencySource.PERIOD_DATES
-    if config.default_frequency is not None:
-        return config.default_frequency, FrequencySource.DEFAULT
     return None
 
 
-def _one_time_total(earnings: Iterable[AmountLine], config: AgiConfig) -> Decimal:
+def _is_zero(value: Decimal | None) -> bool:
+    return value is not None and abs(value) < _CENT
+
+
+def _one_time_total(earnings: Sequence[AmountLine], config: AgiConfig) -> Decimal:
+    commission_once = config.commission_with_other_pay == "one_time" and any(
+        line.amount and not contains_any(line.label, config.commission_earnings)
+        for line in earnings
+    )
     return sum(
         (
             line.amount or _ZERO
             for line in earnings
             if contains_any(line.label, config.one_time_earnings)
+            or (
+                commission_once and contains_any(line.label, config.commission_earnings)
+            )
         ),
         _ZERO,
     )
@@ -143,7 +152,23 @@ def compute_agi(
         "warnings": (),
     }
 
-    resolved = _resolve_frequency(evidence, config)
+    resolved = _printed_or_inferred_frequency(evidence)
+    if _is_zero(evidence.gross) or _is_zero(evidence.federal_taxable_wages):
+        return AgiResult.model_validate(
+            {**blank, "invalid_proof_of_income": True, "warnings": (_ZERO_PAY,)}
+        )
+    annual = evidence.annual_amount
+    if annual is not None and (resolved is None or evidence.gross is None):
+        return AgiResult.model_validate(
+            {
+                **blank,
+                "agi": _cents(annual),
+                "agi_if_review_pretax": _cents(annual),
+                "method": AgiMethod.ANNUAL_AMOUNT,
+            }
+        )
+    if resolved is None and config.default_frequency is not None:
+        resolved = config.default_frequency, FrequencySource.DEFAULT
     if resolved is None:
         return AgiResult.model_validate({**blank, "warnings": (_NO_FREQUENCY,)})
     frequency, source = resolved
@@ -158,17 +183,6 @@ def compute_agi(
     gross = evidence.gross
     if gross is None:
         return AgiResult.model_validate({**known, "warnings": (_NO_GROSS,)})
-    if gross < _NO_REGULAR_PAY:
-        if one_time <= _ZERO:
-            return AgiResult.model_validate({**known, "warnings": (_NO_PAY,)})
-        return AgiResult.model_validate(
-            {
-                **known,
-                "agi": _cents(one_time),
-                "agi_if_review_pretax": _cents(one_time),
-                "method": AgiMethod.ONE_TIME_ONLY,
-            }
-        )
 
     warnings: list[str] = []
     pretax = _deduction_total(decided, Decision.PRETAX, warnings)

@@ -31,6 +31,7 @@ def _evidence(**overrides: Any) -> PaystubEvidence:
         "period_end": BIWEEKLY_END,
         "pay_date": None,
         "federal_taxable_wages": None,
+        "annual_amount": None,
         "earnings": (),
         "taxes": (),
         "deductions": (),
@@ -325,6 +326,152 @@ def test_agi_warns_when_one_time_and_pretax_exceed_regular_pay() -> None:
     )
 
 
+# --- commission (source doc: alone = regular pay; with other pay = bonus column) -----
+
+
+def test_agi_commission_with_other_pay_counts_once_by_default() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        earnings=(_earning("Regular", "1500"), _earning("Commission", "500")),
+    )
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.one_time_total == Decimal("500.00")
+    assert result.agi == Decimal("39500.00")
+
+
+def test_agi_commission_alone_is_regular_pay() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"), earnings=(_earning("Commission", "2000"),)
+    )
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.one_time_total == Decimal("0.00")
+    assert result.agi == Decimal("52000.00")
+
+
+def test_agi_commission_next_to_zero_pay_line_is_alone() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        earnings=(_earning("Regular", "0.00"), _earning("Commission", "2000")),
+    )
+
+    assert compute_agi(evidence, (), AgiConfig()).one_time_total == Decimal("0.00")
+
+
+def test_agi_commission_can_be_configured_as_regular_pay() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        earnings=(_earning("Regular", "1500"), _earning("Commission", "500")),
+    )
+    config = AgiConfig(commission_with_other_pay="regular")
+
+    assert compute_agi(evidence, (), config).agi == Decimal("52000.00")
+
+
+def test_agi_commission_labels_come_from_config() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        earnings=(_earning("Regular", "1500"), _earning("Comm Pay", "500")),
+    )
+    config = AgiConfig(commission_earnings=("comm",))
+
+    assert compute_agi(evidence, (), config).one_time_total == Decimal("500.00")
+
+
+def test_agi_commission_listed_as_one_time_is_not_counted_twice() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        earnings=(_earning("Regular", "1500"), _earning("Commission", "500")),
+    )
+    config = AgiConfig(one_time_earnings=("commission",))
+
+    assert compute_agi(evidence, (), config).one_time_total == Decimal("500.00")
+
+
+# --- invalid proof of income (source doc: $0.00 gross or taxable wages) -----------
+
+
+@pytest.mark.parametrize("gross", ["0", "0.00", "0.004"])
+def test_agi_zero_gross_is_invalid_proof_of_income(gross: str) -> None:
+    evidence = _evidence(gross=Decimal(gross), earnings=(_earning("Bonus", "500"),))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.invalid_proof_of_income is True
+    assert result.agi is None
+    assert result.agi_if_review_pretax is None
+    assert result.method is None
+    assert result.warnings == ("Gross pay or taxable wages are $0.00",)
+
+
+def test_agi_zero_federal_taxable_wages_is_invalid_proof_of_income() -> None:
+    evidence = _evidence(federal_taxable_wages=Decimal("0.00"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.invalid_proof_of_income is True
+    assert result.agi is None
+
+
+def test_agi_zero_is_invalid_even_without_a_frequency() -> None:
+    result = compute_agi(
+        _evidence(gross=Decimal("0"), period_start=None), (), AgiConfig()
+    )
+
+    assert result.warnings == ("Gross pay or taxable wages are $0.00",)
+
+
+def test_agi_valid_stub_is_not_marked_invalid() -> None:
+    assert compute_agi(_evidence(), (), AgiConfig()).invalid_proof_of_income is False
+
+
+# --- printed annual amount (source doc: last resort) --------------------------------
+
+
+def test_agi_annual_amount_used_when_frequency_unknown() -> None:
+    evidence = _evidence(period_start=None, annual_amount=Decimal("45760"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.agi == Decimal("45760.00")
+    assert result.agi_if_review_pretax == Decimal("45760.00")
+    assert result.method is AgiMethod.ANNUAL_AMOUNT
+    assert result.pay_frequency is None
+    assert result.warnings == ()
+
+
+def test_agi_annual_amount_used_when_gross_missing() -> None:
+    evidence = _evidence(gross=None, annual_amount=Decimal("45760"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert (result.agi, result.method) == (
+        Decimal("45760.00"),
+        AgiMethod.ANNUAL_AMOUNT,
+    )
+
+
+def test_agi_annual_amount_beats_configured_default_frequency() -> None:
+    evidence = _evidence(period_start=None, annual_amount=Decimal("45760"))
+    config = AgiConfig(default_frequency=PayFrequency.MONTHLY)
+
+    assert compute_agi(evidence, (), config).method is AgiMethod.ANNUAL_AMOUNT
+
+
+def test_agi_annual_amount_ignored_when_gross_and_frequency_known() -> None:
+    evidence = _evidence(annual_amount=Decimal("99999"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert (result.agi, result.method) == (
+        Decimal("45760.00"),
+        AgiMethod.GROSS_LESS_PRETAX,
+    )
+
+
 # --- no regular pay -------------------------------------------------------------------
 
 
@@ -334,26 +481,6 @@ def test_agi_without_gross_is_none_with_warning() -> None:
     assert result.agi is None
     assert result.periods_per_year == 26
     assert result.warnings == ("No gross pay",)
-
-
-@pytest.mark.parametrize("gross", ["0", "0.004"])
-def test_agi_no_regular_pay_with_bonus_is_one_time_only(gross: str) -> None:
-    evidence = _evidence(gross=Decimal(gross), earnings=(_earning("Bonus", "500"),))
-    decisions = (_decided("401k", "50", Decision.PRETAX),)
-
-    result = compute_agi(evidence, decisions, AgiConfig())
-
-    assert result.method is AgiMethod.ONE_TIME_ONLY
-    assert result.agi == Decimal("500.00")
-    assert result.agi_if_review_pretax == Decimal("500.00")
-    assert result.pretax_total == Decimal("0.00")
-
-
-def test_agi_no_regular_pay_and_no_one_time_is_none_with_warning() -> None:
-    result = compute_agi(_evidence(gross=Decimal("0")), (), AgiConfig())
-
-    assert result.agi is None
-    assert result.warnings == ("No regular pay and no one-time earnings",)
 
 
 # --- rounding -------------------------------------------------------------------------
