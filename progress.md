@@ -185,7 +185,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | ID | Question | Why it matters | Proposed answer |
 |---|---|---|---|
 | Q15 | Grounding failures are currently **flagged only** (DL-019). Should a deduction whose label, heading, code or amount can't be found in the OCR text go to `needs_review`? | Defends against the model inventing a "Pre-Tax" heading or code | Yes, send it to review |
-| Q16 | **AGI from printed federal taxable wages (DL-024, DL-027). Implemented.** Still to confirm with the business: (a) the default for bonus/overtime (`once` vs `annualise`; `once` for now); (b) is the pay frequency still found as in `agi.py`; (c) only the **current-period** figure is used, never year-to-date; (d) will corrected keys include printed federal taxable wages, for stubs that print them, so the replay can check this path? (d is nice to have.) | Changes AGI on every stub that prints the figure | Ask the business |
+| Q16 | **AGI from printed federal taxable wages: settled.** (a) Bonus/overtime is a setting, not a question (DL-027). (b) Frequency found as before (DL-029). (c) This period only; wages above gross treated as a mix-up (DL-030, waiting for the user's OK). (d) Corrected keys including printed taxable wages: nice to have. | — | — |
 | Q17 | DL-022: does "no need to flag it for manual review" also mean the checks shouldn't move rows to review? I've switched that off by default (`send_to_review: false`). | Review workload vs catching contradictions | Confirm |
 | Q18 | ~~Access to the source-of-truth PDF~~ Resolved 2026-11-13: the user attached it (KnowledgeShare 113287; summary in DL-023/DL-025). | — | — |
 | Q19 | $0.00 = invalid proof of income | — | **Answered: yes.** Implemented (DL-026). |

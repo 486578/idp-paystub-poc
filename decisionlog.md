@@ -32,8 +32,10 @@
 | DL-024 | 2026-11-13 | AGI | When federal taxable wages are printed, AGI comes from that number; otherwise from gross | Active (implemented, DL-027) |
 | DL-025 | 2026-11-13 | Rules | Paystub rules from the source document that the design must add (see entry) | Active (items 1–6); item 7 pending |
 | DL-026 | 2026-11-13 | AGI | Commission next to other pay is counted once (configurable); $0.00 pay is invalid; printed annual amount is the last resort | Active |
-| DL-027 | 2026-11-13 | AGI | AGI from printed federal taxable wages; bonus/overtime handling is a setting (default: counted once) | Active (default provisional) |
+| DL-027 | 2026-11-13 | AGI | AGI from printed federal taxable wages; bonus/overtime handling is a setting (default: counted once) | Active |
 | DL-028 | 2026-11-13 | Scope | Only one paystub per person; no averaging of several stubs | Active |
+| DL-029 | 2026-11-13 | AGI | Pay frequency for the federal-wages AGI is found as before: printed, else from period dates | Active |
+| DL-030 | 2026-11-13 | AGI | Only this period's taxable wages are used, never year-to-date; wages above gross are treated as a mix-up | Proposed |
 
 ---
 
@@ -271,11 +273,24 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
   - `once` (default) = `(wages − one_time) × periods + one_time`;
   - `annualise` = `wages × periods`.
   - Bonus/overtime **is taxable** and included in the printed wages either way; the setting only decides whether that one-off amount is multiplied by the number of pay periods.
-  - The default matches the gross formula and the source document's separate overtime/bonus column. It's provisional until the business confirms (Q16a).
+  - The default matches the gross formula and the source document's separate overtime/bonus column. The user confirmed (2026-11-13) that this is a setting, not a business question.
 - **stub_0002:** $965.70 × 26 = $25,108.20, whatever the asterisk setting.
 - **Replay:** unaffected; the answer keys don't contain federal taxable wages.
-- **Approved by:** user (setting approach); default awaiting business confirmation.
+- **Approved by:** user.
 
 ## DL-028: One paystub per person
 - **Decision:** the component handles one paystub at a time. Averaging several stubs from the same employer (source document) is out of scope.
 - **Approved by:** user.
+
+## DL-029: Pay frequency for the federal-wages AGI
+- **Decision:** the federal-wages AGI still needs the number of paychecks per year. It's found the same way as for gross: the frequency printed on the stub, otherwise worked out from the pay period dates. The printed annual amount is the fallback when neither works (DL-026).
+- **Approved by:** user ("if taxable wages is printed we will obviously need the pay frequency").
+
+## DL-030: This period only, never year-to-date (proposed)
+- **Decision:**
+  1. AGI uses only the **this-period** taxable wages; a year-to-date figure is never used.
+  2. If only a year-to-date figure is printed, the taxable wages count as "not printed", so AGI falls back to gross − pre-tax.
+  3. **Safety check:** this-period taxable wages greater than this-period gross are impossible. Most likely the year-to-date column was read by mistake. Flag it, ignore the taxable wages, and use gross − pre-tax.
+  4. The extraction prompt (F8) tells the model to copy only the this-period column.
+- **Why:** AGI multiplies one paycheck by the paychecks per year, so a year-to-date figure would count the same money many times (stub_0002: $351k instead of $25k).
+- **Approved by:** pending user OK.
