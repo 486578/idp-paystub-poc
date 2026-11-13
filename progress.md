@@ -187,7 +187,13 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q15 | Grounding failures are currently **flagged only** (DL-019). Should a deduction whose label, heading, code or amount can't be found in the OCR text go to `needs_review`? | Defends against the model inventing a "Pre-Tax" heading or code | Yes, send it to review |
 | Q16 | **AGI from printed federal taxable wages (DL-024).** Four details to confirm: (a) one-time pay: `FTW × periods`, or `(FTW − bonus/overtime) × periods + bonus/overtime` as `agi.py` does for gross? (b) Is the pay frequency still found as in `agi.py` (printed, then period dates)? (c) Is only the **current-period** figure used, never year-to-date? (d) Will the corrected answer keys include the printed federal taxable wages, so the 7a replay can check this path? | Changes AGI on every stub that prints the figure | Ask the business |
 | Q17 | DL-022: does "no need to flag it for manual review" also mean the checks shouldn't move rows to review? I've switched that off by default (`send_to_review: false`). | Review workload vs catching contradictions | Confirm |
-| Q18 | The source-of-truth PDF needs a Microsoft sign-in, so I can't open it. Could you download it into `docs/` (git-ignored like every PDF), or paste pages 25 onward? | Every rule and keyword must be checked against it | — |
+| Q18 | ~~Access to the source-of-truth PDF~~ Resolved 2026-11-13: the user attached it (KnowledgeShare 113287; summary in DL-023/DL-025). | — | — |
+| Q19 | **$0.00 taxable income or gross** = invalid proof of income (source doc). Return "invalid" with no AGI, replacing `agi.py`'s "one-time only" AGI for zero gross? None of the 82 keys use "one-time only", so the replay is unaffected. | Doc vs reference conflict | Yes, follow the document |
+| Q20 | **Parentheses = taxable wages** (source doc). Treat "Gross 1,052.70 (965.70)" as federal taxable wages $965.70? This is mostly an extraction instruction (F8). | Feeds the federal-wages AGI | Yes |
+| Q21 | **Handwritten pre-tax notes** (source doc): circled or annotated deductions count as explicit pre-tax. Add it as a rule plus a per-row extraction field? It needs a vision model. Do any of the 82 synthetic stubs have handwriting? | New rule and extraction field | Add it; low priority unless the stubs have it |
+| Q22 | **Commission** alongside other pay goes in the overtime/bonus column (source doc), so it's one-time pay. Commission alone is regular. Change the one-time logic to match? `agi.py` treats commission as regular. | AGI on stubs with commission | Ask the business: does "column" mean it's added once, not annualised? |
+| Q23 | **Annual amount** printed on the stub: use it when gross/federal taxable wages are unavailable or the frequency can't be found (source doc)? | New fallback; extraction field | Yes, as a last resort |
+| Q24 | **Several stubs from one employer** are averaged (source doc). Out of scope for the one-stub POC? | Scope | Out of scope; note for later |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -204,7 +210,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 ### Business rules: answered 2026-11-13 (DL-021 to DL-024)
 | ID | Question | Answer |
 |---|---|---|
-| B1 | Source of truth | The project PDF, page 25 onward (DL-023). Not read yet (Q18). |
+| B1 | Source of truth | KnowledgeShare 113287 "Income Types List", section "Pay stubs (US)" (DL-023). Read 2026-11-13; new rules in DL-025. |
 | B2 | Benefit name only | Post-tax |
 | B3 | `EMP` | The employee's contribution, not the employer's |
 | B4 | `EE` | Post-tax |
@@ -365,3 +371,4 @@ _None yet._
   - Business answers received (B1–B8).
   - Defaults changed, tests first: benefit names, EE and unclear rows are now post-tax; new `emp_means: employee`; `checks.send_to_review: false`. All 392 tests pass, including the 82-key replay and the updated worked examples.
   - Federal-wages AGI (DL-024) waits on Q16. The source PDF waits on access (Q18).
+  - The user attached the source document. Read it and recorded its paystub rules (DL-023, DL-025) and new questions Q19–Q24. No code changes yet.

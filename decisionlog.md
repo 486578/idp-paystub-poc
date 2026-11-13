@@ -28,8 +28,9 @@
 | DL-020 | 2026-11-11 | Checks | Default tolerances: net $0.02; wages $1.00 | Provisional |
 | DL-021 | 2026-11-13 | Rules | Business answers: only an explicit pre-tax marker makes a deduction pre-tax; EE post-tax; EMP = employee; asterisk + footnote applies to any deduction | Active |
 | DL-022 | 2026-11-13 | Checks | Checks flag only by default; moving rows to review is opt-in (`send_to_review`) | Active |
-| DL-023 | 2026-11-13 | Rules | Source of truth: the project PDF, page 25 onward (paystub extraction) | Active (document not yet read) |
-| DL-024 | 2026-11-13 | AGI | When federal taxable wages are printed, AGI comes from that number | Approved, not implemented |
+| DL-023 | 2026-11-13 | Rules | Source of truth: KnowledgeShare doc 113287 "Income Types List", section "Pay stubs (US)" | Active |
+| DL-024 | 2026-11-13 | AGI | When federal taxable wages are printed, AGI comes from that number; otherwise from gross | Approved, not implemented |
+| DL-025 | 2026-11-13 | Rules | Paystub rules from the source document that the design must add (see entry) | Proposed |
 
 ---
 
@@ -202,13 +203,32 @@
 - **Alternatives:** keep escalation on (rows the numbers contradict get a human look); remove escalation entirely (loses a useful option).
 - **Approved by:** derived from the business answer; awaiting user confirmation.
 
-## DL-023: Source of truth is the project PDF
-- **Decision:** the project document (SharePoint, TG-AIAccelerator; page 25 onward covers paystub extraction) replaces the earlier README and our assumptions as the authority on rules. Legal has confirmed it can be shared with the team.
-- **Status:** the link needs a Microsoft sign-in, so the document hasn't been read yet. Every rule and keyword must be checked against it once it's available.
-- **Approved by:** business team.
+## DL-023: Source of truth is the project document
+- **Decision:** KnowledgeShare document 113287, "Income Types List" (41 pages, printed 2025-06-10), replaces the earlier README and our assumptions as the authority. Paystubs are covered by **"Pay stubs (US)"** (pages 25–27). Related sections: Pay stubs (Foreign), Commission, Allowances and Reimbursements, Stipends.
+- **Handling:** the document is marked "Confidential and Proprietary Information of Maximus". It isn't stored in the repo; only short paraphrases appear here.
+- **Which program applies:** the rules differ by program. **IDR/FRAT/DHAR** use federal taxable wages; **ISR** uses gross wages. This project is income-driven repayment (IDR), so the IDR rules apply.
+- **Not covered by the document:** it doesn't list the pre-tax marker words (PRE, PT, ...), and it doesn't say how bonus/overtime combine with federal taxable wages. Those still rest on the business answers (DL-021) and Q16.
+- **Approved by:** business team (Legal confirmed it can be shared).
 
 ## DL-024: AGI from printed federal taxable wages
-- **Decision:** when a stub prints federal taxable wages, that number is the source of truth. AGI is calculated from it, without gross pay and without the deduction decisions.
+- **Decision:** when a stub prints federal taxable wages, that number is the source of truth. AGI is calculated from it, without gross pay and without the deduction decisions. If the wages can't be determined, aren't listed or are illegible, gross is used (the current method).
+- **Confirmed by the source document:** "Must use the federal taxable wages when available" (Pay stubs (US), IDR/FRAT/DHAR).
 - **Departs from the reference:** `agi.py` deliberately ignores federal taxable wages (DL-003/DL-014). Stubs that print them will no longer match the current answer keys' AGI; the business is correcting the keys.
 - **Not implemented yet:** the exact formula needs confirming (open questions in progress.md, Q16).
-- **Approved by:** business team.
+- **Approved by:** business team; source document.
+
+## DL-025: Further paystub rules from the source document (proposed)
+Each item still needs a design decision before coding (progress.md Q19–Q24).
+
+| # | What the document says (paraphrased) | What it means for the component |
+|---|---|---|
+| 1 | An amount in parentheses after a description represents **taxable wages**. | Extraction (F8) must capture it as federal taxable wages. |
+| 2 | $0.00 in the taxable-income or gross field = **invalid proof of income** (deny). | No AGI; the result says "invalid". This differs from `agi.py`, which calculates "one-time only" AGI when gross is 0 but there's a bonus. |
+| 3 | Pre-tax can be shown **in writing**, by circling or annotating specific deductions on the stub. A blanket note ("$200 of this pay is pre-tax") doesn't count. | A new kind of explicit pre-tax evidence. Extraction needs a per-row handwritten-note field; vision models only. |
+| 4 | The printed **annual amount** may be used if gross/federal taxable wages are unavailable or the frequency can't otherwise be determined. | A new last-resort AGI path, and an extraction field. |
+| 5 | **Commission:** commission alone goes in the federal-taxable-wages column; commission alongside other pay goes in the **overtime/bonus** column. | Commission becomes one-time pay when there's other pay. `agi.py` treats it as regular pay. |
+| 6 | **Allowances and reimbursements** (and stipends) on a stub are neither removed from nor added to gross/taxable wages. | Earnings stay as printed. Uniform reimbursements aren't subtracted as pre-tax deductions. |
+| 7 | **Several valid stubs from one source** are averaged, then multiplied by the pay frequency. | Out of scope for the one-stub component; the caller could do it later. |
+
+- **Contrast to note:** for **letters** (employer, explaining income, retirement, self-employment), the document says to remove any pre-tax deduction, "including items such as medical insurance with no pre-tax label". That rule is for letters, not paystubs; for paystubs the business answer is that unmarked items are post-tax (DL-021).
+- **Approved by:** pending.
