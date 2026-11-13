@@ -36,6 +36,9 @@
 | DL-028 | 2026-11-13 | Scope | Only one paystub per person; no averaging of several stubs | Active |
 | DL-029 | 2026-11-13 | AGI | Pay frequency for the federal-wages AGI is found as before: printed, else from period dates | Active |
 | DL-030 | 2026-11-13 | AGI | Only this period's taxable wages are used, never year-to-date; wages above gross are treated as a mix-up | Active |
+| DL-031 | 2026-11-13 | Reading | Input is a local path or `s3://` URI; no bucket names in code | Active |
+| DL-032 | 2026-11-13 | Reading | Reading strategy is a setting (`digital_then_ocr` / `ocr_only` / `digital_only`); the caller supplies the OCR engines in order | Active |
+| DL-033 | 2026-11-13 | Reading | Page images: at most 3 pages, 144 dpi, greyscale | Active |
 
 ---
 
@@ -296,3 +299,34 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Implemented:** item 3 in `compute_agi` (warning "Federal taxable wages are above gross pay (year-to-date figure?); used gross instead"). Items 1, 2 and 4 belong to the F8 extraction prompt.
 - **Known edge case:** imputed income added to taxable wages but not to gross could legitimately push taxable wages slightly above gross. We'd fall back to gross with a warning. Revisit in the break-it phase if real stubs show it.
 - **Approved by:** user (2026-11-13).
+
+## DL-031: Input is a local path or an S3 URI
+- **Decision:** `read()` accepts a local file path or `s3://bucket/key`.
+  - An S3 file is downloaded to a temporary file through a downloader **supplied by the caller**, used for both OCR and page images, then deleted.
+  - The Textract **staging bucket** (needed for multi-page scans) and the region are given by the caller when it builds the OCR reader.
+  - No bucket name or region appears in the component's code or config.
+- **Approved by:** user (the user will create the staging bucket).
+
+## DL-032: Reading strategy is a setting
+- **Decision:** `reading.strategy` chooses the order:
+
+  | Strategy | What runs |
+  |---|---|
+  | `digital_then_ocr` (default) | pdfplumber, then OCR only when the digital read looks wrong |
+  | `ocr_only` | OCR only |
+  | `digital_only` | pdfplumber only; never calls a paid service |
+
+  - The OCR engines are passed in by the caller as an **ordered list** of `idp-core` `Reader`s (e.g. Textract, then another engine). They're tried in order.
+  - A strategy that needs OCR with no OCR reader supplied raises `ConfigError` at start-up.
+- **When the digital read "looks wrong"** (library behaviour, verified in `idp-ocr` `feature/tables`):
+  - no pages or no text;
+  - images cover half or more of a page;
+  - tables were requested but none found;
+  - a page has zero words;
+  - a timeout or temporary error (retried first).
+- **Why:** different stub sets (digital vs scanned) and cost control; reusable with other OCR engines.
+- **Approved by:** user.
+
+## DL-033: Page image defaults
+- **Decision:** at most 3 pages, 144 dpi, greyscale (the `idp-ocr` `render_pages` defaults). Configurable in `reading`.
+- **Approved by:** user.
