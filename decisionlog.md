@@ -37,8 +37,9 @@
 | DL-029 | 2026-11-13 | AGI | Pay frequency for the federal-wages AGI is found as before: printed, else from period dates | Active |
 | DL-030 | 2026-11-13 | AGI | Only this period's taxable wages are used, never year-to-date; wages above gross are treated as a mix-up | Active |
 | DL-031 | 2026-11-13 | Reading | Input is a local path or `s3://` URI; no bucket names in code | Active |
-| DL-032 | 2026-11-13 | Reading | Reading strategy is a setting (`digital_then_ocr` / `ocr_only` / `digital_only`); the caller supplies the OCR engines in order | Active |
+| DL-032 | 2026-11-13 | Reading | Reading strategy is a setting (`digital_then_ocr` / `ocr_only` / `digital_only`); the caller supplies the OCR engines in order | Superseded by DL-034 |
 | DL-033 | 2026-11-13 | Reading | Page images: at most 3 pages, 144 dpi, greyscale | Active |
+| DL-034 | 2026-11-13 | Reading | `reading.strategy` is an ordered list of reader names, tried in that order | Active |
 
 ---
 
@@ -329,4 +330,15 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 
 ## DL-033: Page image defaults
 - **Decision:** at most 3 pages, 144 dpi, greyscale (the `idp-ocr` `render_pages` defaults). Configurable in `reading`.
+- **Approved by:** user.
+
+## DL-034: Reading strategy is an ordered list (supersedes DL-032)
+- **Decision:** `reading.strategy` lists reader names in the order to try them, e.g. `[pdfplumber, textract]` (default) or `[pdfplumber, textract, other_ocr]`.
+  - Each reader runs only if the one before it failed or gave an unusable read.
+  - `pdfplumber` (free, local) is built in.
+  - Every other name must be supplied by the caller as `readers={"textract": TextractReader(...), ...}`. A listed name that isn't supplied raises `ConfigError` at start-up.
+  - Readers that are supplied but not listed never run.
+  - Names are lower-case letters, digits and `_`, and each may appear **once** (a duplicate would just pay twice for the same failing read).
+- **Examples:** free only = `[pdfplumber]`; OCR only = `[textract]`; three-step = `[pdfplumber, textract, other_ocr]`.
+- **Why:** the user wants to be able to chain any number of readers.
 - **Approved by:** user.

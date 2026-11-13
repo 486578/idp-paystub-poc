@@ -3,9 +3,9 @@
 # Infrastructure (model, region, credentials, paths) never goes in this file.
 
 reading:
-  # digital_then_ocr: free digital reader first, OCR only if that read looks wrong.
-  # ocr_only | digital_only. The OCR engines themselves are supplied by the caller.
-  strategy: digital_then_ocr
+  # Readers tried in this order until one gives a usable read (decisionlog DL-034).
+  # "pdfplumber" (free, local) is built in; other names are supplied by the caller.
+  strategy: [pdfplumber, textract]
   max_images: 3          # page images sent to a vision model
   image_dpi: 144
   image_max_side: 1568

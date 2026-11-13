@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -263,100 +263,115 @@ def pdf(tmp_path: Path) -> Path:
 
 
 def _reader(
-    strategy: str = "digital_then_ocr",
+    strategy: Sequence[str] = ("pdfplumber", "textract"),
     *,
-    digital: _FakeReader | None = None,
-    ocr: Sequence[_FakeReader] = (),
+    readers: Mapping[str, _FakeReader] | None = None,
     renderer: _FakeRenderer | None = None,
     downloader: S3Downloader | None = None,
     **config: Any,
 ) -> IdpOcrStubReader:
+    supplied = readers if readers is not None else {n: _FakeReader(n) for n in strategy}
     return IdpOcrStubReader(
-        ReadingConfig.model_validate({"strategy": strategy, **config}),
-        digital=digital or _FakeReader("pdfplumber"),
-        ocr=tuple(ocr),
+        ReadingConfig.model_validate({"strategy": list(strategy), **config}),
+        readers=supplied,
         renderer=renderer or _FakeRenderer(),
         downloader=downloader,
     )
 
 
-# --- strategies --------------------------------------------------------------------------
+# --- strategy: readers in the order listed -----------------------------------------
 
 
-def test_reading_digital_then_ocr_stops_at_good_digital_read(pdf: Path) -> None:
+def test_reading_stops_at_the_first_good_read(pdf: Path) -> None:
     textract = _FakeReader("textract")
+    readers = {"pdfplumber": _FakeReader("pdfplumber"), "textract": textract}
 
-    stub = _reader(ocr=[textract]).read(str(pdf), images=False)
+    stub = _reader(readers=readers).read(str(pdf), images=False)
 
     assert stub.reader == "pdfplumber"
     assert textract.calls == 0
 
 
-def test_reading_digital_then_ocr_falls_back_when_digital_is_incomplete(
-    pdf: Path,
-) -> None:
-    digital = _FakeReader("pdfplumber", status="partial")
+def test_reading_falls_back_when_a_read_is_incomplete(pdf: Path) -> None:
+    readers = {
+        "pdfplumber": _FakeReader("pdfplumber", status="partial"),
+        "textract": _FakeReader("textract"),
+    }
 
-    stub = _reader(digital=digital, ocr=[_FakeReader("textract")]).read(
-        str(pdf), images=False
-    )
+    stub = _reader(readers=readers).read(str(pdf), images=False)
 
     assert stub.reader == "textract"
 
 
-def test_reading_ocr_readers_are_tried_in_the_given_order(pdf: Path) -> None:
-    first = _FakeReader("textract", status="failed")
-    second = _FakeReader("other_ocr")
+def test_reading_three_readers_are_tried_in_listed_order(pdf: Path) -> None:
+    readers = {
+        "pdfplumber": _FakeReader("pdfplumber", status="partial"),
+        "textract": _FakeReader("textract", status="failed"),
+        "other_ocr": _FakeReader("other_ocr"),
+    }
 
-    stub = _reader("ocr_only", ocr=[first, second]).read(str(pdf), images=False)
-
-    assert stub.reader == "other_ocr"
-    assert first.calls == 1
-
-
-def test_reading_ocr_only_never_runs_the_digital_reader(pdf: Path) -> None:
-    digital = _FakeReader("pdfplumber")
-
-    stub = _reader("ocr_only", digital=digital, ocr=[_FakeReader("textract")]).read(
+    stub = _reader(("pdfplumber", "textract", "other_ocr"), readers=readers).read(
         str(pdf), images=False
     )
 
-    assert (stub.reader, digital.calls) == ("textract", 0)
+    assert stub.reader == "other_ocr"
+    assert [r.calls for r in readers.values()] == [1, 1, 1]
 
 
-def test_reading_digital_only_never_runs_ocr(pdf: Path) -> None:
-    textract = _FakeReader("textract")
+def test_reading_list_order_decides_which_reader_goes_first(pdf: Path) -> None:
+    readers = {
+        "pdfplumber": _FakeReader("pdfplumber"),
+        "textract": _FakeReader("textract"),
+    }
 
-    stub = _reader("digital_only", ocr=[textract]).read(str(pdf), images=False)
+    stub = _reader(("textract", "pdfplumber"), readers=readers).read(
+        str(pdf), images=False
+    )
 
-    assert (stub.reader, textract.calls) == ("pdfplumber", 0)
+    assert (stub.reader, readers["pdfplumber"].calls) == ("textract", 0)
 
 
-def test_reading_digital_only_scan_raises_instead_of_paying(pdf: Path) -> None:
-    digital = _FakeReader("pdfplumber", status="partial")
+def test_reading_supplied_readers_not_listed_never_run(pdf: Path) -> None:
+    readers = {
+        "pdfplumber": _FakeReader("pdfplumber"),
+        "textract": _FakeReader("textract"),
+    }
+
+    stub = _reader(("pdfplumber",), readers=readers).read(str(pdf), images=False)
+
+    assert (stub.reader, readers["textract"].calls) == ("pdfplumber", 0)
+
+
+def test_reading_free_reader_only_raises_on_a_scan_instead_of_paying(
+    pdf: Path,
+) -> None:
+    readers = {"pdfplumber": _FakeReader("pdfplumber", status="partial")}
 
     with pytest.raises(ReadingError, match="incomplete_read") as error:
-        _reader("digital_only", digital=digital).read(str(pdf), images=False)
+        _reader(("pdfplumber",), readers=readers).read(str(pdf), images=False)
 
     assert error.value.code == "incomplete_read"
 
 
-@pytest.mark.parametrize("strategy", ["digital_then_ocr", "ocr_only"])
-def test_reading_strategy_needing_ocr_without_ocr_reader_is_a_config_error(
-    strategy: str,
-) -> None:
-    with pytest.raises(ConfigError, match="OCR reader"):
-        _reader(strategy, ocr=())
+def test_reading_listed_reader_not_supplied_is_a_config_error() -> None:
+    with pytest.raises(ConfigError, match="textract"):
+        _reader(("pdfplumber", "textract"), readers={})
+
+
+def test_reading_pdfplumber_is_built_in_when_not_supplied() -> None:
+    config = ReadingConfig(strategy=("pdfplumber",))
+
+    IdpOcrStubReader(config)
 
 
 def test_reading_every_reader_failing_raises_with_code(pdf: Path) -> None:
-    reader = _reader(
-        digital=_FakeReader("pdfplumber", status="failed"),
-        ocr=[_FakeReader("textract", status="failed")],
-    )
+    readers = {
+        "pdfplumber": _FakeReader("pdfplumber", status="failed"),
+        "textract": _FakeReader("textract", status="failed"),
+    }
 
     with pytest.raises(ReadingError) as error:
-        reader.read(str(pdf), images=False)
+        _reader(readers=readers).read(str(pdf), images=False)
 
     assert error.value.code == "no_evidence"
 
@@ -365,11 +380,12 @@ def test_reading_every_reader_failing_raises_with_code(pdf: Path) -> None:
 
 
 def test_reading_result_holds_document_and_text(pdf: Path) -> None:
-    digital = _FakeReader("pdfplumber", words=("Gross", "Pay"))
+    readers = {
+        "pdfplumber": _FakeReader("pdfplumber", words=("Gross", "Pay")),
+        "textract": _FakeReader("textract"),
+    }
 
-    stub = _reader(digital=digital, ocr=[_FakeReader("textract")]).read(
-        str(pdf), images=False
-    )
+    stub = _reader(readers=readers).read(str(pdf), images=False)
 
     assert stub.text == "--- Page 1 ---\nGross Pay"
     assert [p.page_number for p in stub.document.pages] == [1]
@@ -378,9 +394,7 @@ def test_reading_result_holds_document_and_text(pdf: Path) -> None:
 def test_reading_without_images_does_not_render(pdf: Path) -> None:
     renderer = _FakeRenderer()
 
-    stub = _reader(ocr=[_FakeReader("textract")], renderer=renderer).read(
-        str(pdf), images=False
-    )
+    stub = _reader(renderer=renderer).read(str(pdf), images=False)
 
     assert (stub.images, renderer.calls) == ((), [])
 
@@ -388,7 +402,6 @@ def test_reading_without_images_does_not_render(pdf: Path) -> None:
 def test_reading_with_images_renders_with_configured_settings(pdf: Path) -> None:
     renderer = _FakeRenderer()
     reader = _reader(
-        ocr=[_FakeReader("textract")],
         renderer=renderer,
         image_dpi=200,
         image_max_side=1000,
@@ -420,8 +433,10 @@ class _ThreePageReader(_FakeReader):
 def test_reading_renders_at_most_max_images_pages(pdf: Path) -> None:
     renderer = _FakeRenderer()
     reader = _reader(
-        digital=_ThreePageReader("pdfplumber"),
-        ocr=[_FakeReader("textract")],
+        readers={
+            "pdfplumber": _ThreePageReader("pdfplumber"),
+            "textract": _FakeReader("textract"),
+        },
         renderer=renderer,
         max_images=2,
     )
@@ -436,17 +451,13 @@ def test_reading_renders_at_most_max_images_pages(pdf: Path) -> None:
 
 def test_reading_missing_local_file_raises(tmp_path: Path) -> None:
     with pytest.raises(ReadingError, match="not found"):
-        _reader(ocr=[_FakeReader("textract")]).read(
-            str(tmp_path / "absent.pdf"), images=False
-        )
+        _reader().read(str(tmp_path / "absent.pdf"), images=False)
 
 
 def test_reading_s3_source_is_downloaded_then_read(tmp_path: Path) -> None:
     downloader = _FakeDownloader()
     renderer = _FakeRenderer()
-    reader = _reader(
-        ocr=[_FakeReader("textract")], downloader=downloader, renderer=renderer
-    )
+    reader = _reader(downloader=downloader, renderer=renderer)
 
     stub = reader.read("s3://my-bucket/stubs/stub_0006.pdf", images=True)
 
@@ -462,7 +473,7 @@ def test_reading_s3_key_cannot_choose_where_the_file_is_written(
     tmp_path: Path, key: str
 ) -> None:
     downloader = _RecordingDownloader()
-    reader = _reader(ocr=[_FakeReader("textract")], downloader=downloader)
+    reader = _reader(downloader=downloader)
 
     try:
         reader.read(f"s3://bucket/{key}", images=False)
@@ -475,7 +486,7 @@ def test_reading_s3_key_cannot_choose_where_the_file_is_written(
 
 
 def test_reading_s3_download_library_error_is_wrapped() -> None:
-    reader = _reader(ocr=[_FakeReader("textract")], downloader=_FailingDownloader())
+    reader = _reader(downloader=_FailingDownloader())
 
     with pytest.raises(ReadingError) as error:
         reader.read("s3://bucket/stub.pdf", images=False)
@@ -485,9 +496,7 @@ def test_reading_s3_download_library_error_is_wrapped() -> None:
 
 def test_reading_s3_source_without_downloader_raises() -> None:
     with pytest.raises(ReadingError, match="downloader"):
-        _reader(ocr=[_FakeReader("textract")]).read(
-            "s3://my-bucket/stub.pdf", images=False
-        )
+        _reader().read("s3://my-bucket/stub.pdf", images=False)
 
 
 @pytest.mark.parametrize(
@@ -495,9 +504,7 @@ def test_reading_s3_source_without_downloader_raises() -> None:
 )
 def test_reading_malformed_s3_uri_raises(source: str) -> None:
     with pytest.raises(ReadingError, match="s3://bucket/key"):
-        _reader(ocr=[_FakeReader("textract")], downloader=_FakeDownloader()).read(
-            source, images=False
-        )
+        _reader(downloader=_FakeDownloader()).read(source, images=False)
 
 
 def test_reading_library_error_is_wrapped(tmp_path: Path) -> None:
@@ -505,7 +512,7 @@ def test_reading_library_error_is_wrapped(tmp_path: Path) -> None:
     path.write_bytes(b"x")
 
     with pytest.raises(ReadingError) as error:
-        _reader(ocr=[_FakeReader("textract")]).read(str(path), images=False)
+        _reader().read(str(path), images=False)
 
     assert isinstance(error.value.__cause__, UnsupportedInputError)
 
@@ -522,13 +529,23 @@ def test_reading_config_defaults() -> None:
         config.image_dpi,
         config.image_max_side,
         config.grayscale,
-    ) == ("digital_then_ocr", 3, 144, 1568, True)
+    ) == (("pdfplumber", "textract"), 3, 144, 1568, True)
+
+
+def test_reading_config_strategy_accepts_any_number_of_names() -> None:
+    names = ("pdfplumber", "textract", "other_ocr")
+
+    assert ReadingConfig(strategy=names).strategy == names
 
 
 @pytest.mark.parametrize(
     "bad",
     [
-        {"strategy": "textract_first"},
+        {"strategy": []},
+        {"strategy": "pdfplumber"},
+        {"strategy": ["textract", "textract"]},
+        {"strategy": ["Textract!"]},
+        {"strategy": [""]},
         {"max_images": 0},
         {"image_dpi": 35},
         {"image_dpi": 601},

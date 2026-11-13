@@ -4,7 +4,7 @@ Produces the OCR document, a plain-text rendering for the model and the groundin
 check, and page images only when asked. Nothing here interprets the content.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from typing import Literal, Protocol
@@ -22,6 +22,8 @@ from paystub_agi.errors import ConfigError, ReadingError
 # Only what the free digital reader supports; asking for more would skip it.
 _FEATURES: tuple[Literal["words", "tables"], ...] = ("words", "tables")
 _S3 = "s3://"
+# Free, local readers the component can build itself; paid ones come from the caller.
+_BUILT_IN: dict[str, Callable[[], Reader]] = {"pdfplumber": PdfPlumberReader}
 
 
 class PageImage(BaseModel):
@@ -126,28 +128,29 @@ def _local_name(key: str) -> str:
 
 
 class IdpOcrStubReader:
-    """Reads with idp-ocr. The caller supplies the OCR engines and any S3 downloader."""
+    """Reads with idp-ocr. The caller supplies the readers by name and any downloader."""
 
     def __init__(
         self,
         config: ReadingConfig,
         *,
-        ocr: Sequence[Reader] = (),
-        digital: Reader | None = None,
+        readers: Mapping[str, Reader] | None = None,
         downloader: S3Downloader | None = None,
         renderer: Renderer = render_pages,
     ) -> None:
-        if config.strategy != "digital_only" and not ocr:
+        supplied = dict(readers or {})
+        missing = [
+            n for n in config.strategy if n not in supplied and n not in _BUILT_IN
+        ]
+        if missing:
             raise ConfigError(
-                f"reading strategy '{config.strategy}' needs at least one OCR reader"
+                "reading strategy lists readers that weren't supplied: "
+                + ", ".join(missing)
             )
-        if config.strategy == "ocr_only":
-            self._readers: tuple[Reader, ...] = tuple(ocr)
-        else:
-            first = digital if digital is not None else PdfPlumberReader()
-            self._readers = (
-                (first,) if config.strategy == "digital_only" else (first, *ocr)
-            )
+        self._readers = tuple(
+            supplied[name] if name in supplied else _BUILT_IN[name]()
+            for name in config.strategy
+        )
         self._config = config
         self._downloader = downloader
         self._renderer = renderer

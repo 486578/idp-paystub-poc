@@ -42,12 +42,23 @@ class _Settings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
-class ReadingConfig(_Settings):
-    """How the stub is read (decisionlog DL-032, DL-033). OCR engines come from the caller."""
+def _unique(names: tuple[str, ...]) -> tuple[str, ...]:
+    if len(set(names)) != len(names):
+        raise ValueError("each reader may appear only once")
+    return names
 
-    strategy: Literal["digital_then_ocr", "ocr_only", "digital_only"] = (
-        "digital_then_ocr"
-    )
+
+ReaderName = Annotated[str, Field(pattern=r"^[a-z0-9_]+$")]
+
+
+class ReadingConfig(_Settings):
+    """How the stub is read (decisionlog DL-034, DL-033)."""
+
+    # Readers tried in this order until one gives a usable read. "pdfplumber" is
+    # built in; every other name must be supplied by the caller.
+    strategy: Annotated[
+        tuple[ReaderName, ...], Field(min_length=1), AfterValidator(_unique)
+    ] = ("pdfplumber", "textract")
     max_images: PositiveInt = 3
     image_dpi: Annotated[int, Field(ge=36, le=600)] = 144
     image_max_side: Annotated[int, Field(ge=100)] = 1568

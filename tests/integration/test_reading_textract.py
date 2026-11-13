@@ -29,7 +29,9 @@ def test_textract_reads_stub_0006_with_tables() -> None:
     textract = TextractReader(
         region=region, staging_bucket=os.environ.get("PAYSTUB_TEST_STAGING_BUCKET")
     )
-    reader = IdpOcrStubReader(ReadingConfig(strategy="ocr_only"), ocr=[textract])
+    reader = IdpOcrStubReader(
+        ReadingConfig(strategy=("textract",)), readers={"textract": textract}
+    )
 
     stub = reader.read(str(STUB), images=False)
 

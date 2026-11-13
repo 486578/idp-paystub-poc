@@ -117,11 +117,11 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 
 ### F7: Reading ✅ (`tests/unit/test_reading.py` 38 tests; `tests/acceptance/test_reading_local_pdfs.py` 3; `tests/integration/test_reading_textract.py` opt-in)
 - **API:**
-  - `IdpOcrStubReader(ReadingConfig, ocr=[...], digital=None, downloader=None, renderer=render_pages).read(source, images=bool) -> ReadStub`;
+  - `IdpOcrStubReader(ReadingConfig, readers={name: Reader}, downloader=None, renderer=render_pages).read(source, images=bool) -> ReadStub`;
   - `ReadStub` holds the document, text, reader name and images;
   - `StubReader` is the protocol the analyzer will depend on.
 - **`document_text`:** page by page; Textract lines, or digital words grouped into lines by height; then each table as `| cell | cell |` rows.
-- **Strategy (DL-032):** `digital_then_ocr` / `ocr_only` / `digital_only`. The caller supplies the OCR readers in order. A strategy needing OCR without any OCR reader raises `ConfigError` at start-up.
+- **Strategy (DL-034):** an ordered list of reader names, tried in order (default `[pdfplumber, textract]`). `pdfplumber` is built in; other names are supplied by the caller. A listed name that isn't supplied raises `ConfigError` at start-up.
 - **Sources (DL-031):** a local path, or `s3://bucket/key` downloaded through the caller's downloader into a temp file. That file is used for OCR and images, then deleted.
 - **Errors:** every library failure becomes `ReadingError` (with the library's reason code where there is one).
 - **Real check (free, local):** stub_0006 and stub_0010 both read with pdfplumber, tables found (2 and 6), and all checked amounts present in the text.

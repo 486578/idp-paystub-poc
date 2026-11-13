@@ -17,7 +17,7 @@ def _read(name: str, *, images: bool = False) -> tuple[str, str, int]:
     path = STUBS / name
     if not path.is_file():
         pytest.skip(f"{name} not in {STUBS}")
-    stub = IdpOcrStubReader(ReadingConfig(strategy="digital_only")).read(
+    stub = IdpOcrStubReader(ReadingConfig(strategy=("pdfplumber",))).read(
         str(path), images=images
     )
     return stub.reader, stub.text, len(stub.images)
