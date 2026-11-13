@@ -114,6 +114,7 @@ idp-paystub-usecase/
 ├── idp-paystub-model-comparison/  # git-ignored, READ-ONLY reference clone (agi.py)
 └── docs/
     ├── architecture.md
+    ├── glossary.md           # plain-language terms with examples
     └── paystubs/             # local sample PDFs, git-ignored
 ```
 
