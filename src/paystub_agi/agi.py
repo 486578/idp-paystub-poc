@@ -44,6 +44,7 @@ _NO_FREQUENCY = "Pay frequency could not be determined"
 _NO_GROSS = "No gross pay"
 _ZERO_PAY = "Gross pay or taxable wages are $0.00"
 _EXCEEDS = "One-time earnings and pre-tax deductions exceed regular pay"
+_EXCEEDS_WAGES = "One-time earnings exceed federal taxable wages"
 _NO_AMOUNT = "A deduction counted for AGI has no amount"
 
 
@@ -158,7 +159,8 @@ def compute_agi(
             {**blank, "invalid_proof_of_income": True, "warnings": (_ZERO_PAY,)}
         )
     annual = evidence.annual_amount
-    if annual is not None and (resolved is None or evidence.gross is None):
+    no_pay_figure = evidence.gross is None and evidence.federal_taxable_wages is None
+    if annual is not None and (resolved is None or no_pay_figure):
         return AgiResult.model_validate(
             {
                 **blank,
@@ -180,13 +182,34 @@ def compute_agi(
         "periods_per_year": periods,
     }
 
-    gross = evidence.gross
-    if gross is None:
-        return AgiResult.model_validate({**known, "warnings": (_NO_GROSS,)})
-
     warnings: list[str] = []
     pretax = _deduction_total(decided, Decision.PRETAX, warnings)
     review = _deduction_total(decided, Decision.NEEDS_REVIEW, warnings)
+
+    wages = evidence.federal_taxable_wages
+    if wages is not None:
+        # Printed taxable wages already reflect pre-tax deductions (DL-024).
+        if config.one_time_with_federal_wages == "once":
+            agi = (wages - one_time) * periods + one_time
+            if wages - one_time < _ZERO:
+                warnings.append(_EXCEEDS_WAGES)
+        else:
+            agi = wages * periods
+        return AgiResult.model_validate(
+            {
+                **known,
+                "agi": _cents(agi),
+                "agi_if_review_pretax": _cents(agi),
+                "method": AgiMethod.FEDERAL_TAXABLE_WAGES,
+                "pretax_total": _cents(pretax),
+                "review_total": _cents(review),
+                "warnings": tuple(warnings),
+            }
+        )
+
+    gross = evidence.gross
+    if gross is None:
+        return AgiResult.model_validate({**known, "warnings": (_NO_GROSS,)})
     agi = (gross - one_time - pretax) * periods + one_time
     if agi - one_time < _ZERO:
         warnings.append(_EXCEEDS)

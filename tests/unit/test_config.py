@@ -50,6 +50,21 @@ def test_config_commission_defaults_follow_user_decision() -> None:
 
     assert agi.commission_earnings == ("commission",)
     assert agi.commission_with_other_pay == "one_time"
+    assert agi.one_time_with_federal_wages == "once"
+
+
+@pytest.mark.parametrize("value", ["once", "annualise"])
+def test_config_one_time_with_federal_wages_accepts(value: str) -> None:
+    config = AnalyzerConfig.from_mapping(
+        {"agi": {"one_time_with_federal_wages": value}}
+    )
+
+    assert config.agi.one_time_with_federal_wages == value
+
+
+def test_config_one_time_with_federal_wages_rejects_unknown() -> None:
+    with pytest.raises(ConfigError, match="one_time_with_federal_wages"):
+        AnalyzerConfig.from_mapping({"agi": {"one_time_with_federal_wages": "twice"}})
 
 
 @pytest.mark.parametrize("value", ["one_time", "regular"])

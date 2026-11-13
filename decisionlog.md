@@ -29,9 +29,11 @@
 | DL-021 | 2026-11-13 | Rules | Business answers: only an explicit pre-tax marker makes a deduction pre-tax; EE post-tax; EMP = employee; asterisk + footnote applies to any deduction | Active |
 | DL-022 | 2026-11-13 | Checks | Checks flag only by default; moving rows to review is opt-in (`send_to_review`) | Active |
 | DL-023 | 2026-11-13 | Rules | Source of truth: KnowledgeShare doc 113287 "Income Types List", section "Pay stubs (US)" | Active |
-| DL-024 | 2026-11-13 | AGI | When federal taxable wages are printed, AGI comes from that number; otherwise from gross | Approved, not implemented |
+| DL-024 | 2026-11-13 | AGI | When federal taxable wages are printed, AGI comes from that number; otherwise from gross | Active (implemented, DL-027) |
 | DL-025 | 2026-11-13 | Rules | Paystub rules from the source document that the design must add (see entry) | Active (items 1–6); item 7 pending |
 | DL-026 | 2026-11-13 | AGI | Commission next to other pay is counted once (configurable); $0.00 pay is invalid; printed annual amount is the last resort | Active |
+| DL-027 | 2026-11-13 | AGI | AGI from printed federal taxable wages; bonus/overtime handling is a setting (default: counted once) | Active (default provisional) |
+| DL-028 | 2026-11-13 | Scope | Only one paystub per person; no averaging of several stubs | Active |
 
 ---
 
@@ -255,4 +257,25 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
   - it's used, as is, when the frequency can't be found from the stub or gross is missing;
   - it's checked **before** the caller's `default_frequency`, because a printed figure beats a configured guess.
 - **Replay:** still 82/82. The answer-key adapter doesn't pass commission or an annual amount, so it keeps reproducing the reference.
+- **Approved by:** user.
+
+## DL-027: AGI from printed federal taxable wages (implements DL-024)
+- **Order of methods:**
+  1. $0.00 gross or taxable wages → invalid;
+  2. printed annual amount, if the frequency is unknown or no pay figure is printed;
+  3. configured default frequency;
+  4. **printed federal taxable wages** (method `federal_taxable_wages`);
+  5. gross − pre-tax (method `gross_less_pretax`).
+- **Deduction decisions don't change this AGI.** The printed wages already reflect pre-tax deductions, so `agi_if_review_pretax` equals `agi`. The decisions are still reported for explanation, and the federal-wages check (F6) still compares them.
+- **Bonus/overtime is a setting:** `agi.one_time_with_federal_wages`.
+  - `once` (default) = `(wages − one_time) × periods + one_time`;
+  - `annualise` = `wages × periods`.
+  - Bonus/overtime **is taxable** and included in the printed wages either way; the setting only decides whether that one-off amount is multiplied by the number of pay periods.
+  - The default matches the gross formula and the source document's separate overtime/bonus column. It's provisional until the business confirms (Q16a).
+- **stub_0002:** $965.70 × 26 = $25,108.20, whatever the asterisk setting.
+- **Replay:** unaffected; the answer keys don't contain federal taxable wages.
+- **Approved by:** user (setting approach); default awaiting business confirmation.
+
+## DL-028: One paystub per person
+- **Decision:** the component handles one paystub at a time. Averaging several stubs from the same employer (source document) is out of scope.
 - **Approved by:** user.

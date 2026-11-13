@@ -428,6 +428,93 @@ def test_agi_valid_stub_is_not_marked_invalid() -> None:
     assert compute_agi(_evidence(), (), AgiConfig()).invalid_proof_of_income is False
 
 
+# --- federal taxable wages (business answer + source doc: use them when printed) -----
+
+
+def test_agi_uses_printed_federal_taxable_wages() -> None:
+    evidence = _evidence(federal_taxable_wages=Decimal("1592.60"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.agi == Decimal("41407.60")
+    assert result.method is AgiMethod.FEDERAL_TAXABLE_WAGES
+
+
+def test_agi_federal_wages_ignore_deduction_decisions() -> None:
+    evidence = _evidence(federal_taxable_wages=Decimal("1592.60"))
+    decisions = (
+        _decided("401k", "100.00", Decision.PRETAX),
+        _decided("Medical", "85.00", Decision.NEEDS_REVIEW),
+    )
+
+    result = compute_agi(evidence, decisions, AgiConfig())
+
+    assert result.agi == Decimal("41407.60")
+    assert result.agi_if_review_pretax == Decimal("41407.60")
+
+
+def test_agi_federal_wages_count_bonus_once_by_default() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        federal_taxable_wages=Decimal("1800"),
+        earnings=(_earning("Regular", "1500"), _earning("Bonus", "500")),
+    )
+
+    assert compute_agi(evidence, (), AgiConfig()).agi == Decimal("34300.00")
+
+
+def test_agi_federal_wages_can_annualise_one_time_pay() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        federal_taxable_wages=Decimal("1800"),
+        earnings=(_earning("Regular", "1500"), _earning("Bonus", "500")),
+    )
+    config = AgiConfig(one_time_with_federal_wages="annualise")
+
+    assert compute_agi(evidence, (), config).agi == Decimal("46800.00")
+
+
+def test_agi_federal_wages_used_when_gross_is_missing() -> None:
+    evidence = _evidence(gross=None, federal_taxable_wages=Decimal("1592.60"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert (result.agi, result.method) == (
+        Decimal("41407.60"),
+        AgiMethod.FEDERAL_TAXABLE_WAGES,
+    )
+
+
+def test_agi_federal_wages_without_frequency_fall_back_to_annual_amount() -> None:
+    evidence = _evidence(
+        period_start=None,
+        federal_taxable_wages=Decimal("1592.60"),
+        annual_amount=Decimal("45760"),
+    )
+
+    assert compute_agi(evidence, (), AgiConfig()).method is AgiMethod.ANNUAL_AMOUNT
+
+
+def test_agi_federal_wages_without_frequency_or_annual_amount_is_none() -> None:
+    evidence = _evidence(period_start=None, federal_taxable_wages=Decimal("1592.60"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.agi is None
+    assert result.warnings == ("Pay frequency could not be determined",)
+
+
+def test_agi_federal_wages_below_one_time_pay_warns() -> None:
+    evidence = _evidence(
+        federal_taxable_wages=Decimal("400"), earnings=(_earning("Bonus", "500"),)
+    )
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.agi == Decimal("-2100.00")
+    assert result.warnings == ("One-time earnings exceed federal taxable wages",)
+
+
 # --- printed annual amount (source doc: last resort) --------------------------------
 
 

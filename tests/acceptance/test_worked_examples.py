@@ -8,7 +8,7 @@ from typing import Any
 
 from paystub_agi.agi import compute_agi
 from paystub_agi.config import AnalyzerConfig
-from paystub_agi.models import Decision, PaystubEvidence, RuleId
+from paystub_agi.models import AgiMethod, Decision, PaystubEvidence, RuleId
 from paystub_agi.rules import classify
 
 
@@ -112,9 +112,10 @@ def test_worked_example_stub_0002_footnote_makes_health_pretax() -> None:
     assert (decided[0].decision, decided[0].rule_id) == (Decision.PRETAX, RuleId.R6)
     assert decided[0].evidence == 'footnote "* Excluded from federal taxable wages"'
     assert result.agi == Decimal("25108.20")
+    assert result.method is AgiMethod.FEDERAL_TAXABLE_WAGES
 
 
-def test_worked_example_stub_0002_uniform_only_makes_health_post_tax() -> None:
+def test_worked_example_stub_0002_uniform_only_keeps_federal_wage_agi() -> None:
     config = AnalyzerConfig.from_mapping({"rules": {"asterisk_scope": "uniform_only"}})
 
     decided = classify(STUB_0002, config.rules)
@@ -124,4 +125,5 @@ def test_worked_example_stub_0002_uniform_only_makes_health_post_tax() -> None:
         Decision.NOT_PRETAX,
         RuleId.R9,
     )
-    assert result.agi == Decimal("27370.20")
+    # Printed federal taxable wages decide AGI, whatever the classification says.
+    assert result.agi == Decimal("25108.20")

@@ -164,6 +164,7 @@ class DeductionDecision(_Model):
 
 
 class AgiMethod(StrEnum):
+    FEDERAL_TAXABLE_WAGES = "federal_taxable_wages"
     GROSS_LESS_PRETAX = "gross_less_pretax"
     ANNUAL_AMOUNT = "annual_amount"
 

@@ -185,7 +185,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | ID | Question | Why it matters | Proposed answer |
 |---|---|---|---|
 | Q15 | Grounding failures are currently **flagged only** (DL-019). Should a deduction whose label, heading, code or amount can't be found in the OCR text go to `needs_review`? | Defends against the model inventing a "Pre-Tax" heading or code | Yes, send it to review |
-| Q16 | **AGI from printed federal taxable wages (DL-024).** Four details to confirm: (a) one-time pay: `FTW × periods`, or `(FTW − bonus/overtime) × periods + bonus/overtime` as `agi.py` does for gross? (b) Is the pay frequency still found as in `agi.py` (printed, then period dates)? (c) Is only the **current-period** figure used, never year-to-date? (d) Will the corrected answer keys include the printed federal taxable wages, so the 7a replay can check this path? | Changes AGI on every stub that prints the figure | Ask the business |
+| Q16 | **AGI from printed federal taxable wages (DL-024, DL-027). Implemented.** Still to confirm with the business: (a) the default for bonus/overtime (`once` vs `annualise`; `once` for now); (b) is the pay frequency still found as in `agi.py`; (c) only the **current-period** figure is used, never year-to-date; (d) will corrected keys include printed federal taxable wages, for stubs that print them, so the replay can check this path? (d is nice to have.) | Changes AGI on every stub that prints the figure | Ask the business |
 | Q17 | DL-022: does "no need to flag it for manual review" also mean the checks shouldn't move rows to review? I've switched that off by default (`send_to_review: false`). | Review workload vs catching contradictions | Confirm |
 | Q18 | ~~Access to the source-of-truth PDF~~ Resolved 2026-11-13: the user attached it (KnowledgeShare 113287; summary in DL-023/DL-025). | — | — |
 | Q19 | $0.00 = invalid proof of income | — | **Answered: yes.** Implemented (DL-026). |
@@ -193,7 +193,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q21 | Handwritten pre-tax notes | — | **Answered: agreed, low priority.** F8 field + a new rule. |
 | Q22 | Commission next to other pay | — | **Answered: configurable, counted once by default.** Implemented (DL-026). |
 | Q23 | Printed annual amount | — | **Answered: yes.** Implemented (DL-026). |
-| Q24 | **Several stubs from one employer** are averaged (source doc). Out of scope for the one-stub POC? | Scope | User asked for a clearer explanation (2026-11-13) |
+| Q24 | Several stubs from one employer | — | **Answered: out of scope** (DL-028). |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -373,3 +373,4 @@ _None yet._
   - Federal-wages AGI (DL-024) waits on Q16. The source PDF waits on access (Q18).
   - The user attached the source document. Read it and recorded its paystub rules (DL-023, DL-025) and new questions Q19–Q24. No code changes yet.
   - User answered Q19–Q23. Implemented, tests first: $0.00 invalid, commission counted once (configurable), printed annual amount as last resort (DL-026). 411 tests pass, 100% coverage, replay still 82/82.
+  - Q24 out of scope. Implemented AGI from printed federal taxable wages with a bonus/overtime setting (DL-027). 422 tests pass, 100% coverage, replay 82/82.

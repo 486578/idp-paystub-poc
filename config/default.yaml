@@ -93,6 +93,8 @@ agi:
   # Source doc: commission alone is regular pay; with other pay it's in the bonus column.
   commission_earnings: [commission]
   commission_with_other_pay: one_time   # one_time (counted once) | regular (annualised)
+  # When federal taxable wages are printed, AGI comes from them (decisionlog DL-024).
+  one_time_with_federal_wages: once     # once: (FTW - one_time) x periods + one_time | annualise: FTW x periods
   periods_per_year:
     weekly: 52
     biweekly: 26

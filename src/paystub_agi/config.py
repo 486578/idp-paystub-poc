@@ -167,6 +167,9 @@ class AgiConfig(_Settings):
     # the bonus column. "one_time" counts it once instead of annualising it.
     commission_earnings: Keywords = ("commission",)
     commission_with_other_pay: Literal["one_time", "regular"] = "one_time"
+    # With printed federal taxable wages: "once" adds bonus/overtime once (like the
+    # gross formula); "annualise" multiplies the whole figure by the periods.
+    one_time_with_federal_wages: Literal["once", "annualise"] = "once"
     periods_per_year: Annotated[
         dict[PayFrequency, PositiveInt], AfterValidator(_every_frequency)
     ] = {
