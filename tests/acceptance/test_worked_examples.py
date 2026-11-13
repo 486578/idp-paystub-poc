@@ -65,18 +65,30 @@ STUB_0002 = PaystubEvidence.model_validate(
 )
 
 
-def test_worked_example_stub_0006_benefit_names_go_to_review() -> None:
+def test_worked_example_stub_0006_unmarked_benefits_are_post_tax() -> None:
     config = AnalyzerConfig()
 
     decided = classify(STUB_0006, config.rules)
     result = compute_agi(STUB_0006, decided, config.agi)
 
     assert [(d.decision, d.rule_id) for d in decided] == [
-        (Decision.NEEDS_REVIEW, RuleId.R9),
-        (Decision.NEEDS_REVIEW, RuleId.R9),
-        (Decision.NEEDS_REVIEW, RuleId.R9),
+        (Decision.NOT_PRETAX, RuleId.R9),
+        (Decision.NOT_PRETAX, RuleId.R9),
+        (Decision.NOT_PRETAX, RuleId.R9),
         (Decision.EXCLUDED, RuleId.R1),
     ]
+    assert result.agi == Decimal("45760.00")
+    assert result.agi_if_review_pretax == Decimal("45760.00")
+
+
+def test_worked_example_stub_0006_review_setting_gives_a_range() -> None:
+    config = AnalyzerConfig.from_mapping(
+        {"rules": {"bare_benefit_names": "needs_review"}}
+    )
+
+    decided = classify(STUB_0006, config.rules)
+    result = compute_agi(STUB_0006, decided, config.agi)
+
     assert result.agi == Decimal("45760.00")
     assert result.agi_if_review_pretax == Decimal("41407.60")
 
@@ -100,15 +112,14 @@ def test_worked_example_stub_0002_footnote_makes_health_pretax() -> None:
     assert result.agi == Decimal("25108.20")
 
 
-def test_worked_example_stub_0002_uniform_only_sends_health_to_review() -> None:
+def test_worked_example_stub_0002_uniform_only_makes_health_post_tax() -> None:
     config = AnalyzerConfig.from_mapping({"rules": {"asterisk_scope": "uniform_only"}})
 
     decided = classify(STUB_0002, config.rules)
     result = compute_agi(STUB_0002, decided, config.agi)
 
     assert (decided[0].decision, decided[0].rule_id) == (
-        Decision.NEEDS_REVIEW,
+        Decision.NOT_PRETAX,
         RuleId.R9,
     )
     assert result.agi == Decimal("27370.20")
-    assert result.agi_if_review_pretax == Decimal("25108.20")

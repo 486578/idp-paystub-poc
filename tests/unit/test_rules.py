@@ -379,6 +379,21 @@ def test_rules_r8_loses_to_r7() -> None:
     assert _decide(_line("EMP Dental EE")).rule_id is RuleId.R7
 
 
+def test_rules_r8_emp_as_employee_lets_later_rules_decide() -> None:
+    _assert(
+        _decide(_line("EMP 401k"), emp_means="employee"),
+        Decision.NOT_PRETAX,
+        RuleId.R9,
+        'label "EMP 401k"',
+    )
+
+
+def test_rules_r8_emp_as_employee_keeps_explicit_pretax() -> None:
+    decided = _decide(_line("EMP 401k PRE"), emp_means="employee")
+
+    assert (decided.decision, decided.rule_id) == (Decision.PRETAX, RuleId.R4)
+
+
 # --- R9: benefit name only ---------------------------------------------------------------
 
 

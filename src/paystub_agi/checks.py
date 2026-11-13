@@ -57,10 +57,15 @@ def _amounts_in(text: str) -> set[Decimal]:
 
 
 def _row_flags(
-    code: CheckCode, message: str, rows: Iterator[int]
+    code: CheckCode, message: str, rows: Iterator[int], send_to_review: bool
 ) -> tuple[CheckFlag, ...]:
     return tuple(
-        CheckFlag(code=code, message=message, deduction_index=i, send_to_review=True)
+        CheckFlag(
+            code=code,
+            message=message,
+            deduction_index=i,
+            send_to_review=send_to_review,
+        )
         for i in rows
     )
 
@@ -182,7 +187,7 @@ class FederalTaxableWagesCheck:
         )
         return (
             CheckFlag(code=code, message=message),
-            *_row_flags(code, message, rows),
+            *_row_flags(code, message, rows, context.config.send_to_review),
         )
 
 
@@ -237,7 +242,7 @@ class PayrollTaxGapCheck:
         )
         return (
             CheckFlag(code=code, message=message),
-            *_row_flags(code, message, rows),
+            *_row_flags(code, message, rows, config.send_to_review),
         )
 
 

@@ -79,13 +79,18 @@ def _run(
     *,
     rules: dict[str, Any] | None = None,
     decisions: Sequence[DeductionDecision] | None = None,
+    send_to_review: bool = False,
 ) -> CheckReport:
     decided = (
         classify(evidence, RulesConfig.model_validate(rules or {}))
         if decisions is None
         else tuple(decisions)
     )
-    return run_checks(evidence, decided, ChecksConfig(), document)
+    config = ChecksConfig(send_to_review=send_to_review)
+    return run_checks(evidence, decided, config, document)
+
+
+REVIEW_RULES = {"bare_benefit_names": "needs_review", "unclear_default": "needs_review"}
 
 
 def _codes(report: CheckReport) -> list[tuple[CheckCode, int | None, bool]]:
@@ -288,11 +293,7 @@ def test_checks_federal_wages_mismatch_sends_r9_r10_rows_to_review() -> None:
         ],
     )
 
-    report = _run(
-        evidence,
-        document=None,
-        rules={"bare_benefit_names": "not_pretax", "unclear_default": "not_pretax"},
-    )
+    report = _run(evidence, document=None, send_to_review=True)
 
     assert _codes(report) == [
         (CheckCode.FEDERAL_TAXABLE_WAGES_MISMATCH, None, False),
@@ -301,10 +302,21 @@ def test_checks_federal_wages_mismatch_sends_r9_r10_rows_to_review() -> None:
     ]
 
 
+def test_checks_federal_wages_mismatch_by_default_only_marks_rows() -> None:
+    report = _run(_evidence(federal_taxable_wages="1592.60"), document=None)
+
+    assert _codes(report) == [
+        (CheckCode.FEDERAL_TAXABLE_WAGES_MISMATCH, None, False),
+        (CheckCode.FEDERAL_TAXABLE_WAGES_MISMATCH, 0, False),
+        (CheckCode.FEDERAL_TAXABLE_WAGES_MISMATCH, 1, False),
+        (CheckCode.FEDERAL_TAXABLE_WAGES_MISMATCH, 2, False),
+    ]
+
+
 def test_checks_federal_wages_mismatch_skips_rows_already_in_review() -> None:
     evidence = _evidence(federal_taxable_wages="1592.60")
 
-    report = _run(evidence, document=None)
+    report = _run(evidence, document=None, rules=REVIEW_RULES, send_to_review=True)
 
     assert _codes(report) == [(CheckCode.FEDERAL_TAXABLE_WAGES_MISMATCH, None, False)]
 
@@ -362,11 +374,7 @@ def _gap_evidence(**overrides: Any) -> PaystubEvidence:
 
 
 def test_checks_gap_sends_not_pretax_cafeteria_rows_to_review() -> None:
-    report = _run(
-        _gap_evidence(),
-        document=None,
-        rules={"bare_benefit_names": "not_pretax", "unclear_default": "not_pretax"},
-    )
+    report = _run(_gap_evidence(), document=None, send_to_review=True)
 
     assert _codes(report) == [
         (CheckCode.PAYROLL_TAX_GAP, None, False),
@@ -375,8 +383,20 @@ def test_checks_gap_sends_not_pretax_cafeteria_rows_to_review() -> None:
     ]
 
 
-def test_checks_gap_leaves_pretax_and_review_rows_alone() -> None:
+def test_checks_gap_by_default_only_marks_rows() -> None:
     report = _run(_gap_evidence(), document=None)
+
+    assert _codes(report) == [
+        (CheckCode.PAYROLL_TAX_GAP, None, False),
+        (CheckCode.PAYROLL_TAX_GAP, 0, False),
+        (CheckCode.PAYROLL_TAX_GAP, 2, False),
+    ]
+
+
+def test_checks_gap_leaves_pretax_and_review_rows_alone() -> None:
+    report = _run(
+        _gap_evidence(), document=None, rules=REVIEW_RULES, send_to_review=True
+    )
 
     assert _codes(report) == [(CheckCode.PAYROLL_TAX_GAP, None, False)]
 
@@ -395,7 +415,7 @@ def test_checks_gap_needs_both_taxes_to_show_it() -> None:
 def test_checks_gap_uses_one_tax_when_only_one_is_printed() -> None:
     taxes = [{"label": "OASDI", "amount": "106.95"}]
 
-    report = _run(_gap_evidence(taxes=taxes), document=None)
+    report = _run(_gap_evidence(taxes=taxes), document=None, rules=REVIEW_RULES)
 
     assert _codes(report) == [(CheckCode.PAYROLL_TAX_GAP, None, False)]
 

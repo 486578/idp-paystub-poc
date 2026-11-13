@@ -188,6 +188,8 @@ class EmpRule:
 
     def apply(self, line: DeductionLine, context: RuleContext) -> Verdict | None:
         config = context.config
+        if config.emp_means == "employee":
+            return None
         decision = (
             Decision.EXCLUDED
             if config.emp_means == "employer"

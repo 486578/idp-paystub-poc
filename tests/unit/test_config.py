@@ -19,14 +19,14 @@ def _write(tmp_path: Path, text: str) -> Path:
 # --- defaults ------------------------------------------------------------------------
 
 
-def test_config_rule_setting_defaults_match_architecture() -> None:
+def test_config_rule_setting_defaults_follow_business_answers() -> None:
     rules = RulesConfig()
 
-    assert rules.bare_benefit_names == "needs_review"
-    assert rules.ee_means == "needs_review"
-    assert rules.emp_means == "needs_review"
+    assert rules.bare_benefit_names == "not_pretax"
+    assert rules.ee_means == "not_pretax"
+    assert rules.emp_means == "employee"
     assert rules.asterisk_scope == "any"
-    assert rules.unclear_default == "needs_review"
+    assert rules.unclear_default == "not_pretax"
 
 
 def test_config_agi_defaults_match_reference() -> None:
@@ -79,7 +79,7 @@ def test_config_ee_means_accepts(value: str) -> None:
     assert RulesConfig.model_validate({"ee_means": value}).ee_means == value
 
 
-@pytest.mark.parametrize("value", ["employer", "pretax", "needs_review"])
+@pytest.mark.parametrize("value", ["employee", "employer", "pretax", "needs_review"])
 def test_config_emp_means_accepts(value: str) -> None:
     assert RulesConfig.model_validate({"emp_means": value}).emp_means == value
 
@@ -186,6 +186,7 @@ def test_config_one_time_earnings_may_be_empty() -> None:
 def test_config_checks_defaults() -> None:
     checks = ChecksConfig()
 
+    assert checks.send_to_review is False
     assert checks.net_tolerance == Decimal("0.02")
     assert checks.wage_tolerance == Decimal("1.00")
     assert checks.social_security_rate == Decimal("0.062")
@@ -233,7 +234,7 @@ def test_config_from_yaml_partial_file_keeps_other_defaults(tmp_path: Path) -> N
     config = AnalyzerConfig.from_yaml(path)
 
     assert config.rules.ee_means == "pretax"
-    assert config.rules.emp_means == "needs_review"
+    assert config.rules.emp_means == "employee"
     assert config.agi == AgiConfig()
 
 

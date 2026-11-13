@@ -3,9 +3,12 @@
 > Status and history of the build. Update at the end of every work session and every feature.
 > Design: [docs/architecture.md](docs/architecture.md). Working rules: [AGENTS.md](AGENTS.md).
 
-**Last updated:** 2026-11-11
+**Last updated:** 2026-11-13
 **Current phase:** 1. Core logic
-**Next action:** F7 (OCR reading wrapper). Waiting on Q14 group A and Q15.
+**Next action:**
+- get the source-of-truth PDF (DL-023);
+- answer Q16 (AGI from federal taxable wages), then implement it;
+- then F7.
 
 ---
 
@@ -182,6 +185,9 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | ID | Question | Why it matters | Proposed answer |
 |---|---|---|---|
 | Q15 | Grounding failures are currently **flagged only** (DL-019). Should a deduction whose label, heading, code or amount can't be found in the OCR text go to `needs_review`? | Defends against the model inventing a "Pre-Tax" heading or code | Yes, send it to review |
+| Q16 | **AGI from printed federal taxable wages (DL-024).** Four details to confirm: (a) one-time pay: `FTW × periods`, or `(FTW − bonus/overtime) × periods + bonus/overtime` as `agi.py` does for gross? (b) Is the pay frequency still found as in `agi.py` (printed, then period dates)? (c) Is only the **current-period** figure used, never year-to-date? (d) Will the corrected answer keys include the printed federal taxable wages, so the 7a replay can check this path? | Changes AGI on every stub that prints the figure | Ask the business |
+| Q17 | DL-022: does "no need to flag it for manual review" also mean the checks shouldn't move rows to review? I've switched that off by default (`send_to_review: false`). | Review workload vs catching contradictions | Confirm |
+| Q18 | The source-of-truth PDF needs a Microsoft sign-in, so I can't open it. Could you download it into `docs/` (git-ignored like every PDF), or paste pages 25 onward? | Every rule and keyword must be checked against it | — |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -195,7 +201,21 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q7 | `money.py` is a new module that isn't in architecture section 8.5. It puts money parsing in one place. OK to add it, and update the architecture doc? | Architecture changes need your approval | Yes |
 | Q8 | `employee_pretax_failures.csv` sits in the repo root. Keep it, git-ignore it, or move it to a git-ignored `data/` folder? | Data stays out of git | Move to `data/` (git-ignored) |
 
-### Business rules (outside answers pending)
+### Business rules: answered 2026-11-13 (DL-021 to DL-024)
+| ID | Question | Answer |
+|---|---|---|
+| B1 | Source of truth | The project PDF, page 25 onward (DL-023). Not read yet (Q18). |
+| B2 | Benefit name only | Post-tax |
+| B3 | `EMP` | The employee's contribution, not the employer's |
+| B4 | `EE` | Post-tax |
+| B5 | Asterisk | An asterisk plus a footnote saying it's excluded from taxable wages makes any deduction pre-tax |
+| B6 | Printed federal taxable wages | Use them for AGI (DL-024; details Q16) |
+| B7 | No indicator | Post-tax; no manual review |
+| B8 | Corrected answer keys | The business is correcting them to match these rules; expected next week |
+
+Still open with the business: B9 (downstream use of AGI), B10 (`agi.py`'s never-pre-tax list), B11 (short markers `pre`/`pt`; check the PDF), B12 (heading vs row conflict).
+
+### Business rules (original list, kept for history)
 These don't block building; they're **settings** (architecture section 7). The POC default is `needs_review` unless noted.
 
 | ID | Question | Setting |
@@ -341,3 +361,7 @@ _None yet._
   - Completed F2, F3 and F4; the 82/82 replay passes.
   - Q9–Q11 are still unanswered. I proceeded without them: dependency holds not copied, `summary.md` not committed, and the architecture doc not yet changed (the code follows `agi.py`).
   - Created `decisionlog.md` (DL-001 to DL-020) at the user's request. Keyword additions (DL-017) done. Completed F6 using the approved review policy (DL-018).
+- **2026-11-13:**
+  - Business answers received (B1–B8).
+  - Defaults changed, tests first: benefit names, EE and unclear rows are now post-tax; new `emp_means: employee`; `checks.send_to_review: false`. All 392 tests pass, including the 82-key replay and the updated worked examples.
+  - Federal-wages AGI (DL-024) waits on Q16. The source PDF waits on access (Q18).

@@ -141,13 +141,14 @@ class RuleKeywords(_Settings):
 
 
 class RulesConfig(_Settings):
-    """Settings for the disputed rules R6 to R10 (architecture section 7)."""
+    """Settings for rules R6 to R10; defaults follow the business answers (DL-021)."""
 
-    bare_benefit_names: Treatment = "needs_review"
-    ee_means: Treatment = "needs_review"
-    emp_means: Literal["employer", "pretax", "needs_review"] = "needs_review"
+    bare_benefit_names: Treatment = "not_pretax"
+    ee_means: Treatment = "not_pretax"
+    # "employee": EMP is the employee's own contribution, so later rules decide.
+    emp_means: Literal["employee", "employer", "pretax", "needs_review"] = "employee"
     asterisk_scope: Literal["any", "uniform_only"] = "any"
-    unclear_default: Literal["not_pretax", "needs_review"] = "needs_review"
+    unclear_default: Literal["not_pretax", "needs_review"] = "not_pretax"
     keywords: RuleKeywords = RuleKeywords()
 
 
@@ -179,6 +180,8 @@ class AgiConfig(_Settings):
 class ChecksConfig(_Settings):
     """Tolerances and labels for the consistency checks (architecture step 4)."""
 
+    # Off: the business wants no manual review for unmarked rows (DL-022).
+    send_to_review: bool = False
     net_tolerance: Annotated[Decimal, Field(ge=0)] = Decimal("0.02")
     wage_tolerance: Annotated[Decimal, Field(ge=0)] = Decimal("1.00")
     social_security_rate: Annotated[Decimal, Field(gt=0)] = Decimal("0.062")

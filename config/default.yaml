@@ -3,12 +3,12 @@
 # Infrastructure (model, region, credentials, paths) never goes in this file.
 
 rules:
-  # Disputed rules (architecture section 7). Change these when the business answers.
-  bare_benefit_names: needs_review   # R9: pretax | not_pretax | needs_review
-  ee_means: needs_review             # R7: pretax | not_pretax | needs_review
-  emp_means: needs_review            # R8: employer | pretax | needs_review
+  # Business answers of 2026-11-13 (decisionlog DL-021): no explicit pre-tax marker = post-tax.
+  bare_benefit_names: not_pretax     # R9: pretax | not_pretax | needs_review
+  ee_means: not_pretax               # R7: pretax | not_pretax | needs_review
+  emp_means: employee                # R8: employee (later rules decide) | employer | pretax | needs_review
   asterisk_scope: any                # R6: any | uniform_only
-  unclear_default: needs_review      # R10: not_pretax | needs_review
+  unclear_default: not_pretax        # R10: not_pretax | needs_review
 
   # Case-insensitive, whole-word matching. "pre tax" also matches "Pre-Tax".
   keywords:
@@ -103,6 +103,7 @@ agi:
 
 checks:
   # Checks flag inconsistencies; they never change extracted amounts (decisionlog DL-018).
+  send_to_review: false        # true: flagged R9/R10 rows move to needs_review (DL-022)
   net_tolerance: 0.02          # gross - taxes - employee deductions vs printed net
   wage_tolerance: 1.00         # federal taxable wages, and payroll-tax implied wages vs gross
   social_security_rate: 0.062
