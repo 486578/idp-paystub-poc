@@ -474,6 +474,33 @@ def test_agi_federal_wages_can_annualise_one_time_pay() -> None:
     assert compute_agi(evidence, (), config).agi == Decimal("46800.00")
 
 
+def test_agi_federal_wages_above_gross_fall_back_to_gross() -> None:
+    evidence = _evidence(
+        gross=Decimal("1052.70"), federal_taxable_wages=Decimal("13519.80")
+    )
+    decisions = (_decided("Health", "87.00", Decision.PRETAX),)
+
+    result = compute_agi(evidence, decisions, AgiConfig())
+
+    assert result.agi == Decimal("25108.20")
+    assert result.method is AgiMethod.GROSS_LESS_PRETAX
+    assert result.warnings == (
+        "Federal taxable wages are above gross pay (year-to-date figure?); "
+        "used gross instead",
+    )
+
+
+def test_agi_federal_wages_equal_to_gross_are_used() -> None:
+    evidence = _evidence(federal_taxable_wages=Decimal("1760"))
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert (result.agi, result.method) == (
+        Decimal("45760.00"),
+        AgiMethod.FEDERAL_TAXABLE_WAGES,
+    )
+
+
 def test_agi_federal_wages_used_when_gross_is_missing() -> None:
     evidence = _evidence(gross=None, federal_taxable_wages=Decimal("1592.60"))
 

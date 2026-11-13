@@ -45,6 +45,10 @@ _NO_GROSS = "No gross pay"
 _ZERO_PAY = "Gross pay or taxable wages are $0.00"
 _EXCEEDS = "One-time earnings and pre-tax deductions exceed regular pay"
 _EXCEEDS_WAGES = "One-time earnings exceed federal taxable wages"
+_WAGES_ABOVE_GROSS = (
+    "Federal taxable wages are above gross pay (year-to-date figure?); "
+    "used gross instead"
+)
 _NO_AMOUNT = "A deduction counted for AGI has no amount"
 
 
@@ -187,6 +191,10 @@ def compute_agi(
     review = _deduction_total(decided, Decision.NEEDS_REVIEW, warnings)
 
     wages = evidence.federal_taxable_wages
+    if wages is not None and evidence.gross is not None and wages > evidence.gross:
+        # Impossible for one paycheck; most likely the year-to-date column (DL-030).
+        warnings.append(_WAGES_ABOVE_GROSS)
+        wages = None
     if wages is not None:
         # Printed taxable wages already reflect pre-tax deductions (DL-024).
         if config.one_time_with_federal_wages == "once":

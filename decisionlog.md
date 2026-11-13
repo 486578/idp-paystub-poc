@@ -35,7 +35,7 @@
 | DL-027 | 2026-11-13 | AGI | AGI from printed federal taxable wages; bonus/overtime handling is a setting (default: counted once) | Active |
 | DL-028 | 2026-11-13 | Scope | Only one paystub per person; no averaging of several stubs | Active |
 | DL-029 | 2026-11-13 | AGI | Pay frequency for the federal-wages AGI is found as before: printed, else from period dates | Active |
-| DL-030 | 2026-11-13 | AGI | Only this period's taxable wages are used, never year-to-date; wages above gross are treated as a mix-up | Proposed |
+| DL-030 | 2026-11-13 | AGI | Only this period's taxable wages are used, never year-to-date; wages above gross are treated as a mix-up | Active |
 
 ---
 
@@ -293,4 +293,6 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
   3. **Safety check:** this-period taxable wages greater than this-period gross are impossible. Most likely the year-to-date column was read by mistake. Flag it, ignore the taxable wages, and use gross − pre-tax.
   4. The extraction prompt (F8) tells the model to copy only the this-period column.
 - **Why:** AGI multiplies one paycheck by the paychecks per year, so a year-to-date figure would count the same money many times (stub_0002: $351k instead of $25k).
-- **Approved by:** pending user OK.
+- **Implemented:** item 3 in `compute_agi` (warning "Federal taxable wages are above gross pay (year-to-date figure?); used gross instead"). Items 1, 2 and 4 belong to the F8 extraction prompt.
+- **Known edge case:** imputed income added to taxable wages but not to gross could legitimately push taxable wages slightly above gross. We'd fall back to gross with a warning. Revisit in the break-it phase if real stubs show it.
+- **Approved by:** user (2026-11-13).

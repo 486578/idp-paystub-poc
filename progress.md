@@ -344,7 +344,14 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 
 ## 6. Break-it log
 
-_None yet._
+_Phase not started. Items queued from reviews:_
+- Taxable wages slightly above gross because of imputed income (DL-030 fallback would trigger).
+- Labels hundreds of characters long (F2 #3).
+- Short markers `pre`/`pt`/`er`/`post` matching unrelated words (F3 #1, B11).
+- A heading like "Employee/Employer Deductions" excluding every row (F5 #3).
+- A footnote saying "\* after-tax" (F5 #5).
+- An invented amount equal to another printed number, e.g. a year-to-date figure (F6 #4).
+- Joined codes such as "PX401 EEPRE" (Q14).
 
 ---
 
