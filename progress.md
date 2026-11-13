@@ -5,10 +5,7 @@
 
 **Last updated:** 2026-11-13
 **Current phase:** 1. Core logic
-**Next action:**
-- get the source-of-truth PDF (DL-023);
-- answer Q16 (AGI from federal taxable wages), then implement it;
-- then F7.
+**Next action:** F8 (evidence extraction).
 
 ---
 
@@ -27,7 +24,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F4 | AGI calculation + answer-key replay test (eval 7a) | `agi.py`, `matching.py`, `evaluation/answer_keys.py` | F2, F3 | ✅ | |
 | F5 | Rule engine R1–R10 | `rules.py` | F2, F3 | ✅ | |
 | F6 | Checks: grounding, net reconciliation, Social Security/Medicare gap, federal taxable wages | `checks.py` | F2, F3 | ✅ | |
-| F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ⬜ | |
+| F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ✅ | |
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ⬜ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ⬜ | |
 | F10 | `PaystubAnalyzer` wiring + public API | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
@@ -117,6 +114,17 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 
 - **Robustness:** decisions that don't match the evidence rows, and flags pointing at rows that don't exist, raise `InputMismatchError` instead of giving silently wrong results.
 - **Settings:** a new `checks` section in `ChecksConfig` and `config/default.yaml` (DL-018, DL-020).
+
+### F7: Reading ✅ (`tests/unit/test_reading.py` 38 tests; `tests/acceptance/test_reading_local_pdfs.py` 3; `tests/integration/test_reading_textract.py` opt-in)
+- **API:**
+  - `IdpOcrStubReader(ReadingConfig, ocr=[...], digital=None, downloader=None, renderer=render_pages).read(source, images=bool) -> ReadStub`;
+  - `ReadStub` holds the document, text, reader name and images;
+  - `StubReader` is the protocol the analyzer will depend on.
+- **`document_text`:** page by page; Textract lines, or digital words grouped into lines by height; then each table as `| cell | cell |` rows.
+- **Strategy (DL-032):** `digital_then_ocr` / `ocr_only` / `digital_only`. The caller supplies the OCR readers in order. A strategy needing OCR without any OCR reader raises `ConfigError` at start-up.
+- **Sources (DL-031):** a local path, or `s3://bucket/key` downloaded through the caller's downloader into a temp file. That file is used for OCR and images, then deleted.
+- **Errors:** every library failure becomes `ReadingError` (with the library's reason code where there is one).
+- **Real check (free, local):** stub_0006 and stub_0010 both read with pdfplumber, tables found (2 and 6), and all checked amounts present in the text.
 
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
@@ -334,6 +342,18 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 6 | The payroll-tax gap uses the Social Security and Medicare rates from config. The Additional Medicare tax (0.9% above $200k) makes implied wages **higher**, which can't cause a false gap. | — | — | OK |
 | 7 | Flag messages include amounts. That's fine for results, but they must never be logged (AGENTS section 8). | — | Check again in F10. | Noted |
 | 8 | **Design:** each check is a class behind a protocol; the stand-in check in the tests proves the list can be swapped. Checks have no I/O and only `apply_review` changes decisions, while extracted values are never touched (tested). | — | — | OK |
+
+### F7 review (2026-11-13)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | **Path traversal:** the temp file was named after the S3 key's last part, so a key like `stubs/..` could make the download write outside the temp folder. | High (security) | Failing tests first; the file is now always `paystub` + the extension. | Fixed |
+| 2 | Library errors raised by the S3 downloader weren't wrapped in `ReadingError`. | Medium | Failing test first; wrapped. | Fixed |
+| 3 | Non-library exceptions from a caller's downloader propagate unchanged. That's deliberate (they aren't swallowed), but callers should know. | Low | — | Accepted |
+| 4 | The "no tables found" fallback means a digital stub without a header band goes to paid Textract. The 82-stub run will show how often. | Medium (cost) | Evaluation phase. | Open |
+| 5 | The digital reader can't recognise garbled text layers. F6 grounding and the net check are the safety net. | Medium | Break-it phase. | Open |
+| 6 | `ReadStub.text` and `images` are `repr=False`, and nothing in `reading.py` logs. | — | — | OK |
+| 7 | **Design:** no AWS client or bucket name in `src/`. Readers, downloader and renderer are passed in; stand-ins satisfy the library's protocols. | — | — | OK |
+| 8 | **Not run:** the Textract integration test (costs money). Needs `PAYSTUB_TEST_AWS_REGION` (and optionally `PAYSTUB_TEST_STAGING_BUCKET`). | — | Waiting for the user's OK. | Open |
 
 <!-- Template:
 ### F<n> review (date)

@@ -42,6 +42,18 @@ class _Settings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class ReadingConfig(_Settings):
+    """How the stub is read (decisionlog DL-032, DL-033). OCR engines come from the caller."""
+
+    strategy: Literal["digital_then_ocr", "ocr_only", "digital_only"] = (
+        "digital_then_ocr"
+    )
+    max_images: PositiveInt = 3
+    image_dpi: Annotated[int, Field(ge=36, le=600)] = 144
+    image_max_side: Annotated[int, Field(ge=100)] = 1568
+    grayscale: bool = True
+
+
 class RuleKeywords(_Settings):
     """Words the rules look for. Matching is case-insensitive, on whole words."""
 
@@ -207,6 +219,7 @@ class ChecksConfig(_Settings):
 
 
 class AnalyzerConfig(_Settings):
+    reading: ReadingConfig = ReadingConfig()
     rules: RulesConfig = RulesConfig()
     agi: AgiConfig = AgiConfig()
     checks: ChecksConfig = ChecksConfig()

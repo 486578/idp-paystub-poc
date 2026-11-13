@@ -2,6 +2,15 @@
 # Every value here equals the built-in default; a test keeps them in sync.
 # Infrastructure (model, region, credentials, paths) never goes in this file.
 
+reading:
+  # digital_then_ocr: free digital reader first, OCR only if that read looks wrong.
+  # ocr_only | digital_only. The OCR engines themselves are supplied by the caller.
+  strategy: digital_then_ocr
+  max_images: 3          # page images sent to a vision model
+  image_dpi: 144
+  image_max_side: 1568
+  grayscale: true
+
 rules:
   # Business answers of 2026-11-13 (decisionlog DL-021): no explicit pre-tax marker = post-tax.
   bare_benefit_names: not_pretax     # R9: pretax | not_pretax | needs_review
