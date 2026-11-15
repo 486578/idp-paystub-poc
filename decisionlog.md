@@ -415,7 +415,7 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Models (one per family, Bedrock, us-east-1):** `us.anthropic.claude-opus-5`, `us.anthropic.claude-sonnet-5`, `google.gemma-3-27b-it`, `openai.gpt-oss-120b-1:0`. Chosen by the user from the account's model list.
 - **Provider:** Converse by default; Mantle only where a model requires it (a per-model setting).
 - **Text only for now:** the harness's component settings use `extraction.send_images: never`.
-- **Stub PDFs:** downloaded once from `s3://<bucket>/datasets/pay_stubs/paystubs/<folder>/` into git-ignored `data/paystubs/<folder>/`; runs read the local copies.
+- **Stub PDFs:** downloaded once from `s3://<bucket>/datasets/paystubs/<folder>/` into git-ignored `data/paystubs/<folder>/`; runs read the local copies. (Corrected 2026-11-15: the bucket's real layout; the reference script's `datasets/pay_stubs/paystubs/` doesn't exist.)
 - **Pilot first:** 5 stubs × 1 model, results and call counts shown to the user before any full run.
 - **Scoring:** 7b extraction, 7c classification (disagreement buckets), 7d AGI **exact to the cent** (the size of each difference is reported). Scored against the current keys; the keys folder is a setting, so corrected keys can be swapped in.
 - **Textract:** `mode: sync` by default (DL-035).

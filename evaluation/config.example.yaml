@@ -7,8 +7,8 @@ aws:
     max_attempts: 5
 
 s3:
-  bucket: example-bucket   # the bucket holding datasets/pay_stubs/paystubs/
-  stubs_prefix: datasets/pay_stubs/paystubs/
+  bucket: example-bucket   # the bucket holding datasets/paystubs/
+  stubs_prefix: datasets/paystubs/
 
 paths:
   answer_keys: data/answer_keys

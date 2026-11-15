@@ -25,7 +25,7 @@ def test_eval_settings_defaults() -> None:
 
     assert settings.aws.retries.mode == "adaptive"
     assert settings.aws.retries.max_attempts == 5
-    assert settings.s3.stubs_prefix == "datasets/pay_stubs/paystubs/"
+    assert settings.s3.stubs_prefix == "datasets/paystubs/"
     assert settings.paths.answer_keys == Path("data/answer_keys")
     assert settings.paths.paystubs == Path("data/paystubs")
     assert settings.paths.ocr_reads == Path("data/ocr_reads")

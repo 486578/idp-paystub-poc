@@ -42,7 +42,7 @@ class AwsSettings(_Settings):
 
 class S3Settings(_Settings):
     bucket: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")]
-    stubs_prefix: str = "datasets/pay_stubs/paystubs/"
+    stubs_prefix: str = "datasets/paystubs/"
 
 
 class PathSettings(_Settings):
