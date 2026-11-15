@@ -13,7 +13,13 @@ from pydantic import BaseModel, ConfigDict
 
 from evaluation.answer_keys import AnswerKey, KeyDeduction
 from evaluation.run import StubOutcome
-from paystub_agi.models import Decision, DeductionDecision, PaystubResult, RuleId
+from paystub_agi.models import (
+    AmountLine,
+    Decision,
+    DeductionDecision,
+    PaystubResult,
+    RuleId,
+)
 
 _CENT = Decimal("0.01")
 # R1–R5 are agreed rules; a disagreement there needs investigating (architecture 7c).
@@ -24,6 +30,7 @@ Outcome = Literal[
     "disagree",
     "needs_review",
     "key_unlabelled",
+    "tax_line",
     "missing",
     "extra",
     "extra_excluded",
@@ -144,33 +151,59 @@ def _same_amount(ours: Decimal | None, key: Decimal | None) -> bool:
     return ours is not None and key is not None and abs(ours) == abs(key)
 
 
+def _take(
+    unused: list[int], amounts: Sequence[Decimal | None], key: Decimal | None
+) -> int | None:
+    match = next((i for i in unused if _same_amount(amounts[i], key)), None)
+    if match is not None:
+        unused.remove(match)
+    return match
+
+
 def _rows(
-    decisions: Sequence[DeductionDecision], key: AnswerKey, disputed: bool
+    decisions: Sequence[DeductionDecision],
+    taxes: Sequence[AmountLine],
+    key: AnswerKey,
+    disputed: bool,
 ) -> tuple[RowScore, ...]:
     unused = list(range(len(decisions)))
+    deduction_match = [
+        _take(unused, [d.line.amount for d in decisions], k.amount)
+        for k in key.deductions
+    ]
+    # The keys list taxes among their deductions; those pair with our tax lines.
+    unused_taxes = list(range(len(taxes)))
+    tax_match = [
+        None
+        if found is not None
+        else _take(unused_taxes, [t.amount for t in taxes], k.amount)
+        for k, found in zip(key.deductions, deduction_match, strict=True)
+    ]
     rows: list[RowScore] = []
-    for key_row in key.deductions:
-        match = next(
-            (
-                i
-                for i in unused
-                if _same_amount(decisions[i].line.amount, key_row.amount)
-            ),
-            None,
-        )
-        if match is None:
+    for key_row, match, tax in zip(
+        key.deductions, deduction_match, tax_match, strict=True
+    ):
+        if match is not None:
+            rows.append(_paired(key_row, decisions[match], disputed))
+            continue
+        common = {
+            "key_type": key_row.type,
+            "key_amount": key_row.amount,
+            "key_pretax": key_row.employee_pretax,
+        }
+        if tax is not None:
             rows.append(
                 RowScore(
-                    key_type=key_row.type,
-                    key_amount=key_row.amount,
-                    key_pretax=key_row.employee_pretax,
-                    outcome="missing",
-                    bucket="extraction_problem",
+                    **common,
+                    our_label=taxes[tax].label,
+                    our_amount=taxes[tax].amount,
+                    outcome="tax_line",
                 )
             )
-            continue
-        unused.remove(match)
-        rows.append(_paired(key_row, decisions[match], disputed))
+        else:
+            rows.append(
+                RowScore(**common, outcome="missing", bucket="extraction_problem")
+            )
     for i in unused:
         ours = decisions[i]
         excluded = ours.decision is Decision.EXCLUDED
@@ -208,7 +241,9 @@ def score_outcome(
         stub=outcome.stub,
         status=result.status.value,
         fields=_fields(result, key),
-        rows=_rows(result.decisions, key, outcome.stub in disputed),
+        rows=_rows(
+            result.decisions, result.evidence.taxes, key, outcome.stub in disputed
+        ),
         our_agi=our_agi,
         key_agi=key_agi,
         agi_match=difference == 0,

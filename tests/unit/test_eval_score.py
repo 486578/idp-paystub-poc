@@ -230,6 +230,37 @@ def test_eval_score_each_row_pairs_once() -> None:
     assert [r.outcome for r in score.rows] == ["agree", "missing"]
 
 
+# --- 7b: key rows that are taxes (pilot finding: keys list taxes as deductions) ------
+
+
+def _tax(label: str, amount: str) -> dict[str, Any]:
+    return {"label": label, "amount": amount, "in_brackets": False}
+
+
+def test_eval_score_key_tax_row_pairs_with_our_tax_line() -> None:
+    outcome = _outcome([], taxes=[_tax("FIT", "158.40")])
+
+    row = _score(outcome, _key([("federal_tax", "158.40", False)])).rows[0]
+
+    assert (row.outcome, row.bucket, row.our_label) == ("tax_line", None, "FIT")
+
+
+def test_eval_score_our_deduction_is_paired_before_a_tax_of_the_same_amount() -> None:
+    decided = [_decided("Dental", "12.00", Decision.NOT_PRETAX, RuleId.R9)]
+    outcome = _outcome(decided, taxes=[_tax("LST", "12.00")])
+
+    rows = _score(outcome, _key([("dental", "12.00", False)])).rows
+
+    assert [(r.outcome, r.our_label) for r in rows] == [("agree", "Dental")]
+
+
+def test_eval_score_tax_lines_pair_once() -> None:
+    outcome = _outcome([], taxes=[_tax("FIT", "10.00")])
+    key = _key([("federal_tax", "10.00", False), ("state_tax", "10.00", False)])
+
+    assert [r.outcome for r in _score(outcome, key).rows] == ["tax_line", "missing"]
+
+
 # --- 7c: classification and buckets --------------------------------------------------
 
 
