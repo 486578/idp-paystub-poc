@@ -46,6 +46,7 @@
 | DL-038 | 2026-11-15 | Store | Evidence store: content fingerprints, OCR read and model answer saved separately, damaged files stop with an error | Partly superseded by DL-039 |
 | DL-039 | 2026-11-15 | Store | Only the OCR read is saved; the model is called on every run, never reused | Active |
 | DL-040 | 2026-11-15 | Analyzer | Stub status rules, errors raised, one analyzer per model, result contents, path/S3 input | Active |
+| DL-041 | 2026-11-15 | Evaluation | Harness setup: 4 models, text only, PDFs downloaded once, pilot first, exact AGI match, Textract sync, no baseline yet | Active |
 
 ---
 
@@ -408,4 +409,16 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
   4. **Result:** status, the AGI result, every deduction decision (rule + quoted evidence), all flags, the checks that couldn't run, the extracted evidence, the reader used and whether the read came from the store. **Not** the OCR text.
   5. **Input:** a local path or `s3://` URI (DL-031). An S3 file is downloaded once to a temporary file, used for the fingerprint, OCR and page images, then deleted.
 - **Design:** `PaystubAnalyzer(config, reader=..., extractor=..., store=None)` only wires the steps (dependency injection); `PaystubAnalyzer.create(config, genai=..., model=..., readers=..., downloader=..., store=...)` builds the standard parts for callers. `ReadStub` now keeps the page numbers instead of the OCR library's document, so a read loaded from the store is complete and page images can be re-rendered.
+- **Approved by:** user (2026-11-15).
+
+## DL-041: Evaluation harness setup (F11)
+- **Models (one per family, Bedrock, us-east-1):** `us.anthropic.claude-opus-5`, `us.anthropic.claude-sonnet-5`, `google.gemma-3-27b-it`, `openai.gpt-oss-120b-1:0`. Chosen by the user from the account's model list.
+- **Provider:** Converse by default; Mantle only where a model requires it (a per-model setting).
+- **Text only for now:** the harness's component settings use `extraction.send_images: never`.
+- **Stub PDFs:** downloaded once from `s3://<bucket>/datasets/pay_stubs/paystubs/<folder>/` into git-ignored `data/paystubs/<folder>/`; runs read the local copies.
+- **Pilot first:** 5 stubs × 1 model, results and call counts shown to the user before any full run.
+- **Scoring:** 7b extraction, 7c classification (disagreement buckets), 7d AGI **exact to the cent** (the size of each difference is reported). Scored against the current keys; the keys folder is a setting, so corrected keys can be swapped in.
+- **Textract:** `mode: sync` by default (DL-035).
+- **Not now:** the baseline adapter (old model outputs through our rules).
+- **Where settings live:** a harness YAML file (`evaluation/config.yaml`, git-ignored; `evaluation/config.example.yaml` committed with placeholders). Region, bucket, model IDs and retry settings live there; credentials come from the AWS profile only.
 - **Approved by:** user (2026-11-15).

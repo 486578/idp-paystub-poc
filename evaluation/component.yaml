@@ -1,0 +1,4 @@
+# Component settings used by the evaluation harness (DL-041).
+# Everything not listed keeps the default from config/default.yaml.
+extraction:
+  send_images: never     # text only for now

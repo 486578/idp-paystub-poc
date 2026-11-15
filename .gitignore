@@ -26,6 +26,9 @@ data/
 docs/paystubs/
 *.pdf
 
+# Real harness settings (bucket, models); the committed example has placeholders
+evaluation/config.yaml
+
 # Read-only reference clone
 idp-paystub-model-comparison/
 

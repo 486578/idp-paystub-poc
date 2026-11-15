@@ -28,7 +28,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ✅ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ✅ | |
 | F10 | `PaystubAnalyzer` wiring + public API; stub status `needs_review` when any flag has `send_to_review` (incl. stub-level, DL-037); OCR read from the store when saved, model called on every run (DL-039) | `analyzer.py`, `__init__.py` | F3–F9 | ✅ | |
-| F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report; Textract `mode: sync \| async` setting (DL-035) | `evaluation/` | F10 | ⬜ | |
+| F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report; Textract `mode: sync \| async` setting (DL-035) | `evaluation/` | F10 | 🟨 | |
 | F12 | "Break it" phase | all | F1–F11 | ⬜ | |
 | F13 | Hand-verification support (~20 stubs: record evidence, then labels) | `evaluation/` | F11 | ⬜ | business answers |
 
@@ -160,6 +160,16 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 - **Behaviours:** all done, verified red before green.
 - **Real check (free, local):** stub_0006 through `create` with pdfplumber and a canned model answer: status `ok`, AGI $45,760 (the key's value), **no flags**; the second run loads the saved read and gives the same result.
 
+### F11: Evaluation harness 🟨 (DL-041)
+Built in slices, each committed green:
+1. **Settings and clients** (`evaluation/settings.py`, `evaluation/clients.py`): harness YAML; Textract options from `mode` (DL-035); Converse or Mantle service per model; boto3 downloader; retries from settings.
+2. **Download** (`evaluation/download.py`): stub PDFs that have an answer key, not already local.
+3. **Run** (`evaluation/run.py`): each model × stub through the analyzer; failures recorded, run continues; one JSON per result.
+4. **Scoring and report** (`evaluation/score.py`, `evaluation/report.py`): 7b, 7c with buckets, 7d exact; CSVs + summary.
+5. **Command line** (`evaluation/__main__.py`) and the **pilot** (5 stubs × 1 model, with the user's OK).
+
+**Behaviours:** listed per slice as they're built.
+
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
 - **Formula:** `AGI = (gross − one_time − pretax) × periods + one_time`, in `Decimal`, rounded **once at the end** to cents with `ROUND_HALF_UP`.
@@ -237,6 +247,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q23 | Printed annual amount | — | **Answered: yes.** Implemented (DL-026). |
 | Q24 | Several stubs from one employer | — | **Answered: out of scope** (DL-028). |
 | Q25 | What does a **lone** bracketed amount mean, e.g. `Medical (85.00)`: money taken out, or taxable wages (source document)? The two-amount tax line `Federal Income Tax (965.70) 120.00` is taxable wages. | Brackets also commonly mean "deducted"; nobody on the project knows | **Open with the business.** Until then such stubs go to review (DL-037). |
+| Q26 | Disputed keys (reported separately in 7c): `advs_paystubs/stub_0010` is clear, but **`stub07` exists in two folders** (`generated_complicated` and `generated_scanned`). Which one is disputed? | Wrong bucket for the other stub | Ask the user |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |

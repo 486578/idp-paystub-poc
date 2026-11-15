@@ -1,0 +1,33 @@
+# Harness settings example (DL-041). Copy to evaluation/config.yaml (git-ignored)
+# and fill in the bucket. Credentials come only from your AWS profile (AWS_PROFILE).
+aws:
+  region: us-east-1
+  retries:
+    mode: adaptive         # standard | adaptive | legacy
+    max_attempts: 5
+
+s3:
+  bucket: example-bucket   # the bucket holding datasets/pay_stubs/paystubs/
+  stubs_prefix: datasets/pay_stubs/paystubs/
+
+paths:
+  answer_keys: data/answer_keys
+  paystubs: data/paystubs
+  ocr_reads: data/ocr_reads
+  results: data/results
+
+component_config: evaluation/component.yaml
+
+textract:
+  mode: sync               # sync (1-page only) | async (needs staging_bucket)
+  staging_bucket: null
+
+models:                    # provider: converse (default) | mantle (only where required)
+  - {name: opus, model_id: us.anthropic.claude-opus-5}
+  - {name: sonnet, model_id: us.anthropic.claude-sonnet-5}
+  - {name: gemma, model_id: google.gemma-3-27b-it}
+  - {name: gpt, model_id: openai.gpt-oss-120b-1:0}
+
+# Keys known to be wrong, as folder/stub (reported separately).
+disputed_stubs:
+  - advs_paystubs/stub_0010
