@@ -18,8 +18,8 @@ from idp_genai.service import Attachment, GenAIService
 
 from paystub_agi.config import ExtractionConfig
 from paystub_agi.errors import ConfigError, ExtractionError
-from paystub_agi.extraction import TASK, EvidenceExtractor, request_fingerprint
-from paystub_agi.models import AmountLine, PaystubEvidence
+from paystub_agi.extraction import EvidenceExtractor
+from paystub_agi.models import PaystubEvidence
 from paystub_agi.reading import PageImage, ReadStub
 
 MODEL = "test-model"
@@ -343,26 +343,6 @@ def test_extraction_library_input_error_is_wrapped() -> None:
 
     assert caught.value.code == "rejected_input"
     assert caught.value.__cause__ is error
-
-
-# --- fingerprint (evidence store key, DL-038) ----------------------------------------
-
-
-def test_extraction_fingerprint_is_stable() -> None:
-    first = _extractor(FakeGenAI()).fingerprint
-
-    assert first == _extractor(FakeGenAI(capabilities=WITH_IMAGES)).fingerprint
-    assert first == request_fingerprint(MODEL, ExtractionConfig())
-
-
-def test_extraction_fingerprint_changes_with_model_settings_prompt_or_schema() -> None:
-    base = request_fingerprint(MODEL, ExtractionConfig())
-
-    assert base != request_fingerprint("other-model", ExtractionConfig())
-    assert base != request_fingerprint(MODEL, ExtractionConfig(temperature=None))
-    assert base != request_fingerprint(MODEL, ExtractionConfig(max_output_tokens=1))
-    assert base != request_fingerprint(MODEL, ExtractionConfig(), task=TASK + " ")
-    assert base != request_fingerprint(MODEL, ExtractionConfig(), schema=AmountLine)
 
 
 # --- the real idp-genai service ------------------------------------------------------

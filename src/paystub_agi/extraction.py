@@ -4,15 +4,13 @@ The model only copies what is printed; it never decides pre-tax status (the sche
 has no such field) and never calculates. Retries belong to the caller's client.
 """
 
-import hashlib
-import json
 from typing import Protocol
 
 from idp_core.exceptions import IdpError
 from idp_core.models import ModelCapabilities
 from idp_genai.responses import ParsedResponse
 from idp_genai.service import Attachment
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from paystub_agi.config import ExtractionConfig
 from paystub_agi.errors import ConfigError, ExtractionError
@@ -94,26 +92,6 @@ def _schema_problems(error: ValidationError) -> str:
     )
 
 
-def request_fingerprint(
-    model: str,
-    config: ExtractionConfig,
-    *,
-    task: str = TASK,
-    schema: type[BaseModel] = PaystubEvidence,
-) -> str:
-    """Identifies everything that shapes the model's answer except the stub itself."""
-    payload = json.dumps(
-        {
-            "model": model,
-            "settings": config.model_dump(mode="json"),
-            "task": task,
-            "schema": schema.model_json_schema(),
-        },
-        sort_keys=True,
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
 class EvidenceExtractor:
     def __init__(self, genai: GenAI, *, model: str, config: ExtractionConfig) -> None:
         if not model.strip():
@@ -128,10 +106,6 @@ class EvidenceExtractor:
         return self._config.send_images == "auto" and bool(
             self._genai.capabilities.image_media_types
         )
-
-    @property
-    def fingerprint(self) -> str:
-        return request_fingerprint(self._model, self._config)
 
     def extract(self, stub: ReadStub) -> PaystubEvidence:
         attachments = (

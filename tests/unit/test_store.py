@@ -5,22 +5,19 @@ import pytest
 
 from paystub_agi.config import ReadingConfig
 from paystub_agi.errors import StoreError
-from paystub_agi.models import PaystubEvidence
-from paystub_agi.reading import PageImage
 from paystub_agi.store import (
     EvidenceStore,
     FileEvidenceStore,
     StoredRead,
-    evidence_key,
-    load,
+    load_read,
     read_key,
-    save,
+    save_read,
 )
 
 KEY = "a" * 64
 OTHER_KEY = "b" * 64
 PDF = b"%PDF-1.7 synthetic stub"
-PNG = PageImage(page_number=1, media_type="image/png", data=b"png-bytes")
+READ = StoredRead(text="--- Page 1 ---\nNet Pay 1,224.70", reader="textract")
 
 
 class MemoryStore:
@@ -38,27 +35,6 @@ class MemoryStore:
 
 def _memory(items: dict[str, str] | None = None) -> EvidenceStore:
     return MemoryStore(items)
-
-
-def _evidence() -> PaystubEvidence:
-    return PaystubEvidence.model_validate(
-        {
-            "gross": "1760.00",
-            "net": "1224.70",
-            "pay_frequency": "Biweekly",
-            "period_start": "2026-07-01",
-            "period_end": "2026-07-14",
-            "pay_date": None,
-            "federal_taxable_wages": None,
-            "annual_amount": None,
-            "earnings": [
-                {"label": "Regular", "amount": "1760.00", "in_brackets": False}
-            ],
-            "taxes": [],
-            "deductions": [],
-            "footnotes": [],
-        }
-    )
 
 
 # --- file store ----------------------------------------------------------------------
@@ -129,38 +105,32 @@ def test_store_file_write_failure_raises_store_error(tmp_path: Path) -> None:
         FileEvidenceStore(blocker).put(KEY, "value")
 
 
-# --- typed load and save -------------------------------------------------------------
-
-
-def test_store_model_round_trip_keeps_exact_amounts() -> None:
-    store = _memory()
-
-    save(store, KEY, _evidence())
-    loaded = load(store, KEY, PaystubEvidence)
-
-    assert loaded == _evidence()
-    assert loaded is not None
-    assert str(loaded.net) == "1224.70"
+# --- saving and loading the OCR read -------------------------------------------------
 
 
 def test_store_read_round_trip() -> None:
     store = _memory()
-    read = StoredRead(text="--- Page 1 ---\nGross Pay", reader="pdfplumber")
 
-    save(store, KEY, read)
+    save_read(store, KEY, READ)
 
-    assert load(store, KEY, StoredRead) == read
+    assert load_read(store, KEY) == READ
+
+
+def test_store_read_round_trip_through_files(tmp_path: Path) -> None:
+    save_read(FileEvidenceStore(tmp_path), KEY, READ)
+
+    assert load_read(FileEvidenceStore(tmp_path), KEY) == READ
 
 
 def test_store_load_missing_returns_none() -> None:
-    assert load(_memory(), KEY, PaystubEvidence) is None
+    assert load_read(_memory(), KEY) is None
 
 
 def test_store_load_damaged_item_raises_without_document_values() -> None:
-    store = _memory({KEY: json.dumps({"gross": "SECRET-123-45-6789"})})
+    damaged = json.dumps({"text": ["SECRET-123-45-6789"], "reader": "textract"})
 
     with pytest.raises(StoreError) as caught:
-        load(store, KEY, PaystubEvidence)
+        load_read(_memory({KEY: damaged}), KEY)
 
     assert KEY in str(caught.value)
     assert "SECRET" not in str(caught.value)
@@ -170,7 +140,7 @@ def test_store_load_damaged_item_raises_without_document_values() -> None:
 
 def test_store_load_invalid_json_raises() -> None:
     with pytest.raises(StoreError, match="damaged"):
-        load(_memory({KEY: "{not json"}), KEY, StoredRead)
+        load_read(_memory({KEY: "{not json"}), KEY)
 
 
 # --- keys ----------------------------------------------------------------------------
@@ -196,28 +166,10 @@ def test_store_read_key_ignores_image_settings() -> None:
     assert read_key(PDF, ReadingConfig()) == read_key(PDF, images)
 
 
-def test_store_evidence_key_changes_with_each_input() -> None:
-    base = evidence_key("fingerprint", "text", ())
-
-    assert base == evidence_key("fingerprint", "text", ())
-    assert base != evidence_key("other", "text", ())
-    assert base != evidence_key("fingerprint", "other", ())
-    assert base != evidence_key("fingerprint", "text", (PNG,))
-    other_png = PageImage(page_number=1, media_type="image/png", data=b"other")
-    assert evidence_key("f", "t", (PNG,)) != evidence_key("f", "t", (other_png,))
-
-
-def test_store_evidence_key_parts_cannot_run_together() -> None:
-    assert evidence_key("ab", "c", ()) != evidence_key("a", "bc", ())
-
-
-def test_store_keys_are_safe_file_names(tmp_path: Path) -> None:
+def test_store_read_key_is_a_safe_file_name(tmp_path: Path) -> None:
     store = FileEvidenceStore(tmp_path)
+    key = read_key(PDF, ReadingConfig())
 
-    for key in (read_key(PDF, ReadingConfig()), evidence_key("f", "t", (PNG,))):
-        store.put(key, "value")
-        assert store.get(key) == "value"
+    store.put(key, "value")
 
-
-def test_store_read_and_evidence_keys_never_collide() -> None:
-    assert read_key(b"x", ReadingConfig(strategy=("t",))) != evidence_key("x", "t", ())
+    assert store.get(key) == "value"

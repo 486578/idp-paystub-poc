@@ -1,14 +1,15 @@
-"""Optional evidence store: saves the costly OCR read and model answer (DL-038).
+"""Optional store for the costly OCR read (DL-038, DL-039).
 
-Saved items contain document contents: the caller's folder must be git-ignored, and
-nothing here logs. Keys are content fingerprints, so a renamed stub is still found.
+Only the read is saved: the model is asked afresh every time, because its answers
+vary between calls. Saved reads contain document contents: the caller's folder must
+be git-ignored, and nothing here logs. Keys are content fingerprints, so a renamed
+stub is still found.
 """
 
 import hashlib
 import json
 import os
 import re
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
@@ -16,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from paystub_agi.config import ReadingConfig
 from paystub_agi.errors import StoreError
-from paystub_agi.reading import PageImage
 
 _KEY = re.compile(r"[0-9a-f]{64}")
 
@@ -69,42 +69,31 @@ class FileEvidenceStore:
             raise StoreError(f"cannot save item {path}") from exc
 
 
-def save(store: EvidenceStore, key: str, value: BaseModel) -> None:
-    store.put(key, value.model_dump_json())
+def save_read(store: EvidenceStore, key: str, read: StoredRead) -> None:
+    store.put(key, read.model_dump_json())
 
 
-def load[M: BaseModel](store: EvidenceStore, key: str, model: type[M]) -> M | None:
+def load_read(store: EvidenceStore, key: str) -> StoredRead | None:
     text = store.get(key)
     if text is None:
         return None
     try:
-        return model.model_validate_json(text)
+        return StoredRead.model_validate_json(text)
     except ValidationError:
         pass
     # Raised outside the handler so the saved document values aren't chained.
     raise StoreError(f"saved item {key} is damaged; delete it to read the stub again")
 
 
-def _digest(*parts: bytes) -> str:
+def read_key(contents: bytes, config: ReadingConfig) -> str:
+    """Same file contents, readers and saved format give the same key."""
     digest = hashlib.sha256()
-    for part in parts:
+    for part in (
+        contents,
+        json.dumps(config.strategy).encode(),
+        json.dumps(StoredRead.model_json_schema(), sort_keys=True).encode(),
+    ):
         # Length first, so ("ab", "c") and ("a", "bc") can't give the same key.
         digest.update(len(part).to_bytes(8, "big"))
         digest.update(part)
     return digest.hexdigest()
-
-
-def read_key(contents: bytes, config: ReadingConfig) -> str:
-    """Same file contents, readers and saved format give the same key."""
-    return _digest(
-        b"read",
-        contents,
-        json.dumps(config.strategy).encode(),
-        json.dumps(StoredRead.model_json_schema(), sort_keys=True).encode(),
-    )
-
-
-def evidence_key(fingerprint: str, text: str, images: Sequence[PageImage]) -> str:
-    """`fingerprint` comes from `EvidenceExtractor.fingerprint`."""
-    image_parts = [part for i in images for part in (i.media_type.encode(), i.data)]
-    return _digest(b"evidence", fingerprint.encode(), text.encode(), *image_parts)

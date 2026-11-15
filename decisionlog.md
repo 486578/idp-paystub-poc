@@ -43,7 +43,8 @@
 | DL-035 | 2026-11-13 | Reading | Textract sync/async is a caller setting (`textract.mode`), built with F11 | Active (planned) |
 | DL-036 | 2026-11-13 | Extraction | Extraction settings (images auto, temperature 0, 8192 tokens); no retries in the component; failures raise `ExtractionError` | Active |
 | DL-037 | 2026-11-13 | Extraction / Checks | A lone bracketed amount is recorded (`in_brackets`) and sends the stub to review until its meaning is known | Active (temporary) |
-| DL-038 | 2026-11-15 | Store | Evidence store: content fingerprints, OCR read and model answer saved separately, damaged files stop with an error | Active |
+| DL-038 | 2026-11-15 | Store | Evidence store: content fingerprints, OCR read and model answer saved separately, damaged files stop with an error | Partly superseded by DL-039 |
+| DL-039 | 2026-11-15 | Store | Only the OCR read is saved; the model is called on every run, never reused | Active |
 
 ---
 
@@ -389,4 +390,11 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
   5. A damaged or unreadable saved item raises `StoreError` (no silent re-run). The message never contains document values.
   6. File names are the fingerprint (64 hex characters) + `.json`; any other key is refused. Files are written to a temporary file first, then swapped in, so a crash can't leave a half-written file.
 - **Where:** `store.py` (`EvidenceStore` protocol with `get`/`put`, `FileEvidenceStore`, key builders, typed load/save). The folder comes from the caller and must be git-ignored (e.g. under `data/`).
+- **Approved by:** user (2026-11-15).
+
+## DL-039: The model is called on every run (partly supersedes DL-038)
+- **Decision:** the store saves **only the OCR read**. The model's answer is never saved for reuse: every run calls the model again, even for the same stub and model.
+- **Why (user):** the same model can give different answers for the same stub, so reusing a saved answer hides that variation; reusing it "doesn't make sense at all".
+- **Removed:** the answer key (`evidence_key`) and the model-setup fingerprint (`EvidenceExtractor.fingerprint`). DL-038 items 1, 5 and 6 (content fingerprint, damaged-file error, safe file names) still apply to the OCR read.
+- **Consequences:** each evaluation run pays for one model call per stub per model; OCR is still paid once per stub. Run-to-run differences between answers become visible, which is wanted.
 - **Approved by:** user (2026-11-15).

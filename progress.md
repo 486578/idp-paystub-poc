@@ -27,7 +27,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ✅ | |
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ✅ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ✅ | |
-| F10 | `PaystubAnalyzer` wiring + public API; stub status `needs_review` when any flag has `send_to_review` (incl. stub-level, DL-037) | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
+| F10 | `PaystubAnalyzer` wiring + public API; stub status `needs_review` when any flag has `send_to_review` (incl. stub-level, DL-037); OCR read from the store when saved, model called on every run (DL-039) | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
 | F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report; Textract `mode: sync \| async` setting (DL-035) | `evaluation/` | F10 | ⬜ | |
 | F12 | "Break it" phase | all | F1–F11 | ⬜ | |
 | F13 | Hand-verification support (~20 stubs: record evidence, then labels) | `evaluation/` | F11 | ⬜ | business answers |
@@ -142,17 +142,15 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 
 **Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (527 passed, 2 integration deselected) coverage ✅ (100% line + branch; `extraction.py` 100%)
 
-### F9: Evidence store ✅ (DL-038; `tests/unit/test_store.py` 27 tests; extraction +2)
+### F9: Evidence store ✅ (DL-038, DL-039; `tests/unit/test_store.py` 22 tests)
 - **API (`store.py`):**
   - `EvidenceStore` protocol (`get`/`put` of text by key); `FileEvidenceStore(folder)` writes `<key>.json` (temp file, then swap).
-  - `save(store, key, model)` / `load(store, key, ModelType)`; `StoredRead` (OCR text + reader name).
-  - `read_key(file_bytes, ReadingConfig)`: contents + reader strategy + saved format. `evidence_key(extractor.fingerprint, text, images)`.
-  - `EvidenceExtractor.fingerprint` / `request_fingerprint(model, config, task, schema)`: model ID, settings, prompt and schema.
+  - `StoredRead` (OCR text + reader name) with `save_read` / `load_read`; `read_key(file_bytes, ReadingConfig)`: contents + reader strategy + saved format.
+  - **Only the OCR read is saved (DL-039):** the model is called on every run; its answers are never reused.
 - **Errors:** `StoreError` for an unsafe key, an unreadable or unwritable file, or a damaged item (message names the key, never document values; nothing chained).
-- **Behaviours:** all done (file store, typed load/save incl. exact amounts and the OCR read, every key input, length-prefixed key parts, safe file names, fingerprint inputs). Verified red before green.
-- **Verified (free, local):** rendering stub_0006 twice gives identical image bytes, so answers keyed on images are found again.
+- **Behaviours:** all done (file store, read round trip in memory and on disk, every key input, safe file names). Verified red before green; the answer-cache tests were removed with DL-039.
 
-**Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (556 passed, 2 integration deselected) coverage ✅ (100% line + branch; `store.py` 100%)
+**Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (551 passed, 2 integration deselected) coverage ✅ (100% line + branch; `store.py` 100%)
 
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
@@ -407,11 +405,13 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 3 | **Path safety:** only 64-character lower-case hex keys become file names, so a key can't escape the folder (tested with `../`, upper case, wrong lengths). | — | — | OK |
 | 4 | If a write fails after the temporary file is written, a `.tmp` file can be left behind. It's never read (only `.json` is). | Low | — | Accepted |
 | 5 | Two processes saving the same key at once would share one `.tmp` name. The POC runs one process. | Low | Revisit if F11 runs stubs in parallel. | Open |
-| 6 | The model ID is in the fingerprint but the provider isn't (the `idp-genai` service doesn't expose it). The same model ID through Converse and Mantle would share saved answers. | Medium | F11: the harness keeps one store folder per provider, or we add a caller-supplied label. | Open |
+| 6 | The model ID is in the fingerprint but the provider isn't (the `idp-genai` service doesn't expose it). The same model ID through Converse and Mantle would share saved answers. | Medium | Moot: answers are no longer saved (DL-039). | Closed |
 | 7 | `read_key` needs the file's bytes. For `s3://` sources the analyzer must get the bytes before reading; the reader downloads internally today. | Medium (design) | F10. | Open |
 | 8 | `StoredRead` keeps the text, not the OCR library's full document, so a stub loaded from the store has no `Document`. Nothing after reading uses it today. | Low (design) | F10 works from the text. | Open |
-| 9 | Page-image rendering is repeatable (checked on stub_0006). A library upgrade that changes rendering would mean one fresh model call per stub, which is the correct behaviour. | — | — | OK |
+| 9 | Page-image rendering is repeatable (checked on stub_0006). | — | No longer needed for keys (DL-039). | Closed |
 | 10 | **Design:** the protocol has only `get`/`put`; the in-memory test store is a real implementation; no folder or bucket name is in `src/`. | — | — | OK |
+| 11 | **Design change (user, DL-039):** reusing a saved model answer hides run-to-run variation. Removed the answer cache and the extraction fingerprint; the store keeps only the OCR read. | — | — | Done |
+| 12 | `docs/architecture.md` section 8.4 still describes saving the model's answer (and "fair comparisons" by reusing it). | Low (docs) | Needs the user's OK to edit the architecture doc. | Open |
 
 <!-- Template:
 ### F<n> review (date)
@@ -464,3 +464,4 @@ _Phase not started. Items queued from reviews:_
   - Q25: a lone bracketed amount has no known meaning. Implemented option 3 (DL-037), tests first: `in_brackets` on every line, and a brackets check that sends the stub to review. 527 tests pass, 100% coverage, replay 82/82.
 - **2026-11-15:**
   - Completed F9 (DL-038), tests first: file store, typed load/save, content-fingerprint keys and the extraction fingerprint. 556 tests pass, 100% coverage. Open points for F10 (S3 bytes for the key, no `Document` from the store) and F11 (provider in the key).
+  - User: the model must be called on every run (answers vary). Removed the answer cache and fingerprint; the store keeps only the OCR read (DL-039). 551 tests pass, 100% coverage.
