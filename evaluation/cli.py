@@ -153,7 +153,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "run":
         config = AnalyzerConfig.from_yaml(settings.component_config)
-        textract = build_textract(session, settings.aws, settings.textract)
+        textract = build_textract(settings.aws, settings.textract)
         store = FileEvidenceStore(paths.ocr_reads)
 
         def factory(model: ModelSettings) -> Analyzer:

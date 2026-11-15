@@ -3,7 +3,7 @@
 Nothing here is part of the component: the component only receives these objects.
 """
 
-from typing import Any, Protocol
+from typing import Any
 
 from botocore.config import Config
 from idp_genai.providers.bedrock import (
@@ -21,10 +21,6 @@ from evaluation.settings import (
 )
 
 
-class Session(Protocol):
-    def client(self, service_name: str, **kwargs: Any) -> Any: ...
-
-
 def boto_config(retries: RetrySettings) -> Config:
     return Config(
         retries={"mode": retries.mode, "total_max_attempts": retries.max_attempts}
@@ -36,16 +32,10 @@ def textract_staging_bucket(settings: TextractSettings) -> str | None:
     return settings.staging_bucket if settings.mode == "async" else None
 
 
-def build_textract(
-    session: Session, aws: AwsSettings, settings: TextractSettings
-) -> TextractReader:
-    client = session.client(
-        "textract", region_name=aws.region, config=boto_config(aws.retries)
-    )
+def build_textract(aws: AwsSettings, settings: TextractSettings) -> TextractReader:
+    # idp-ocr wraps raw boto3 clients privately, so it builds its own (one attempt).
     return TextractReader(
-        client=client,
-        region=aws.region,
-        staging_bucket=textract_staging_bucket(settings),
+        region=aws.region, staging_bucket=textract_staging_bucket(settings)
     )
 
 

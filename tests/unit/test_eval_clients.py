@@ -48,15 +48,11 @@ def test_eval_clients_async_textract_gets_the_staging_bucket() -> None:
     assert textract_staging_bucket(settings) == "staging"
 
 
-def test_eval_clients_textract_uses_the_session_region_and_retries() -> None:
-    session = FakeSession()
-
-    reader = build_textract(session, AWS, TextractSettings())
+def test_eval_clients_textract_reader_builds_its_own_client() -> None:
+    # idp-ocr's adapter for a raw boto3 Textract client is private (pilot finding).
+    reader = build_textract(AWS, TextractSettings())
 
     assert isinstance(reader, TextractReader)
-    [(service, kwargs)] = session.clients
-    assert (service, kwargs["region_name"]) == ("textract", "us-east-1")
-    assert kwargs["config"].retries["total_max_attempts"] == 7
 
 
 def test_eval_clients_converse_service_is_text_only() -> None:
