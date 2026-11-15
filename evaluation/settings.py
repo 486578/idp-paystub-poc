@@ -71,6 +71,8 @@ class ModelSettings(_Settings):
     name: FolderName
     model_id: NonBlank
     provider: Literal["converse", "mantle"] = "converse"
+    # idp-genai: "tool" forces a tool call; "prompt" puts the schema in the prompt.
+    schema_method: Literal["tool", "prompt"] = "tool"
     # When given (even as null), replaces the component's extraction.temperature.
     temperature: Annotated[float, Field(ge=0)] | None = None
 

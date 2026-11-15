@@ -47,10 +47,13 @@ def build_genai(session: Any, aws: AwsSettings, model: ModelSettings) -> GenAISe
             region=aws.region,
             session=session,
             capabilities=bedrock_mantle_capabilities(),
+            schema_method=model.schema_method,
         )
     client = session.client(
         "bedrock-runtime", region_name=aws.region, config=boto_config(aws.retries)
     )
     return GenAIService.create_bedrock_service(
-        client=client, capabilities=bedrock_capabilities()
+        client=client,
+        capabilities=bedrock_capabilities(),
+        schema_method=model.schema_method,
     )

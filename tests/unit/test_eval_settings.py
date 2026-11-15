@@ -143,6 +143,29 @@ def test_eval_settings_example_file_is_valid() -> None:
     ]
     # Verified 2026-11-15: Opus 5 and Sonnet 5 reject any temperature.
     assert [m.temperature for m in settings.models] == [None, None, 0, 0]
+    # Pilot 2: Opus 5 mis-shaped its forced-tool answer, so it gets the schema in the prompt.
+    assert [m.schema_method for m in settings.models] == [
+        "prompt",
+        "tool",
+        "tool",
+        "tool",
+    ]
+
+
+@pytest.mark.parametrize("method", ["tool", "prompt"])
+def test_eval_settings_schema_method_accepts(method: str) -> None:
+    models = [{"name": "a", "model_id": "m", "schema_method": method}]
+
+    settings = HarnessSettings.model_validate(_settings(models=models))
+
+    assert settings.models[0].schema_method == method
+
+
+def test_eval_settings_schema_method_rejects_unknown() -> None:
+    models = [{"name": "a", "model_id": "m", "schema_method": "json_mode"}]
+
+    with pytest.raises(ValueError, match="schema_method"):
+        HarnessSettings.model_validate(_settings(models=models))
 
 
 def test_eval_settings_model_temperature_must_not_be_negative() -> None:

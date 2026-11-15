@@ -22,14 +22,51 @@ AWS = AwsSettings(
 
 
 class FakeSession:
-    """Records the boto3 clients asked for; returns a placeholder client."""
+    """Records the boto3 clients asked for; returns a recording Converse client."""
 
     def __init__(self) -> None:
         self.clients: list[tuple[str, dict[str, Any]]] = []
+        self.runtime = FakeRuntime()
 
     def client(self, service_name: str, **kwargs: Any) -> object:
         self.clients.append((service_name, kwargs))
-        return object()
+        return self.runtime
+
+
+class FakeRuntime:
+    """A bedrock-runtime stand-in that records each Converse request."""
+
+    def __init__(self) -> None:
+        self.requests: list[dict[str, Any]] = []
+
+    def converse(self, **kwargs: Any) -> dict[str, Any]:
+        self.requests.append(kwargs)
+        return {
+            "output": {"message": {"role": "assistant", "content": [{"text": "{}"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+        }
+
+
+def _converse_request(model: ModelSettings) -> dict[str, Any]:
+    session = FakeSession()
+    build_genai(session, AWS, model).extract(
+        model=model.model_id, task="Copy the gross.", schema={"type": "object"}
+    )
+    [request] = session.runtime.requests
+    return request
+
+
+def test_eval_clients_converse_forces_a_tool_by_default() -> None:
+    request = _converse_request(ModelSettings(name="gemma", model_id="m"))
+
+    assert "toolConfig" in request
+
+
+def test_eval_clients_prompt_schema_method_sends_no_tool() -> None:
+    model = ModelSettings(name="opus", model_id="m", schema_method="prompt")
+
+    assert "toolConfig" not in _converse_request(model)
 
 
 def test_eval_clients_retry_config_comes_from_settings() -> None:

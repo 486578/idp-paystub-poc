@@ -25,7 +25,8 @@ textract:
 models:                    # provider: converse (default) | mantle (only where required)
   # temperature: replaces extraction.temperature for that model; Opus 5 and Sonnet 5
   # reject any temperature (checked 2026-11-15), so theirs is null.
-  - {name: opus, model_id: us.anthropic.claude-opus-5, temperature: null}
+  # schema_method: tool (default) | prompt; Opus 5 mis-shaped its forced-tool answers.
+  - {name: opus, model_id: us.anthropic.claude-opus-5, temperature: null, schema_method: prompt}
   - {name: sonnet, model_id: us.anthropic.claude-sonnet-5, temperature: null}
   - {name: gemma, model_id: google.gemma-3-27b-it, temperature: 0}
   - {name: gpt, model_id: openai.gpt-oss-120b-1:0, temperature: 0}
