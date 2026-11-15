@@ -135,8 +135,8 @@ flowchart TD
         G --> RES["PaystubResult<br/>returned to the caller"]
     end
 
-    C -. "optional: save evidence" .-> ST[("Evidence store<br/>(only if supplied)")]
-    ST -. "optional: reuse evidence,<br/>skip steps 2–3" .-> E
+    B -. "optional: save OCR read" .-> ST[("Evidence store<br/>(only if supplied)")]
+    ST -. "optional: reuse OCR read,<br/>skip step 2 (model still called)" .-> C
 
     subgraph EVAL["POC evaluation harness (separate, uses the component)"]
         H["7. Evaluate vs answer keys<br/>7a AGI replay · 7b extraction<br/>7c classification · 7d end-to-end AGI<br/>+ hand-verified set, agi.py"] --> R["Report"]
@@ -332,7 +332,7 @@ For each deduction paired in 7b:
 |---|---|
 | **Hand-verified set (~20 stubs)** | Settles the "Agreed rule disagrees" cases and acts as the trustworthy reference where keys are wrong. Record the **evidence** first; assign true/false once the rules are agreed. |
 | **`agi.py` with the model's own flag** | Shows what our approach changes compared with the current method on the same stubs. |
-| **Corrected answer keys (when available)** | The key location is a harness setting. When corrected keys arrive, point the harness at them and rerun with the saved evidence. No new model calls are needed. |
+| **Corrected answer keys (when available)** | The key location is a harness setting. When corrected keys arrive, point the harness at them and rerun. The saved OCR reads are reused; the model is called again (DL-039). |
 
 **What the report shows:**
 - 7a–7d results per model and per settings combination;
@@ -405,7 +405,7 @@ analyzer = PaystubAnalyzer(
     config=AnalyzerConfig.from_yaml("paystub.yaml"),
     genai=my_genai_service,  # any idp-genai service; the caller picks provider and model
     reader=None,             # optional: a custom idp-ocr reader
-    store=None,              # optional: an evidence store; None = nothing is saved
+    store=None,              # optional: saves OCR reads; None = nothing is saved
 )
 
 result = analyzer.analyze("stub_0006.pdf")  # or bytes
@@ -477,28 +477,34 @@ agi:
 | `reader`: an `idp-ocr` reader | No | `idp-ocr` automatic reader (digital first, Textract for scans) | E.g. to use a different Textract client or region. |
 | `store`: an evidence store | No | none (in memory only) | See 8.4. |
 
-### 8.4 In memory vs saved evidence
+### 8.4 In memory vs saved OCR reads
 **By default nothing is saved.** `analyze()` works entirely in memory and returns a `PaystubResult`, like any normal function.
 
-The optional **evidence store** saves the output of the expensive steps (OCR document + extracted evidence) under a key such as *(stub, model, schema version)*. When the same stub is analysed again with the same model, the component loads the evidence instead of calling Textract and the model again.
+The optional **evidence store** saves only the **OCR read** (the document text and which reader produced it). When the same stub is analysed again, the component loads the read instead of calling Textract again.
+
+**The model's answer is never saved for reuse (DL-039).** The model is called on every run, even for the same stub and model, because the same model can give different answers for the same stub. Reusing a saved answer would hide that variation.
 
 **Why the POC needs it:**
 
 | Reason | Explanation |
 |---|---|
-| **Cost and time** | Evaluation means running 82 stubs × several models × several settings combinations. With a store, OCR and model calls happen **once** per stub and model. Every settings change then reruns only steps 4–6, in seconds. |
-| **Fair comparisons** | Models don't return exactly the same answer twice. If we called the model again for every settings change, results would move for two reasons at once. Reusing the same evidence means any difference comes **only** from the rules. |
-| **Audit** | The saved evidence shows exactly what the model read, so any decision can be traced back to it. |
+| **Cost and time** | Evaluation means running 82 stubs × several models × several settings combinations. With a store, Textract runs **once** per stub, shared by every model and every run. |
+| **Same input for every model** | All models read exactly the same OCR text, so differences between them come from the models, not from the OCR. |
+
+**How a saved read is found (DL-038):**
+- by the file's **contents** (a SHA-256 fingerprint), plus the reader order and the saved format, so a renamed stub is still found and a changed file isn't;
+- a damaged or unreadable saved read stops with a clear error instead of silently paying again;
+- file names are the fingerprint only, so they can't point outside the folder.
 
 **What the component provides:**
 
 | Piece | Behaviour |
 |---|---|
 | `EvidenceStore` | A tiny interface with `get(key)` and `put(key, value)`. |
-| `FileEvidenceStore` | Writes JSON files to a local folder. Enough for the POC. |
+| `FileEvidenceStore` | Writes one JSON file per saved read to a local folder chosen by the caller. Enough for the POC. |
 | Other stores (e.g. S3, a database) | A production caller can write its own, or use none. |
 
-The **evaluation harness** uses `FileEvidenceStore`. A production caller would typically pass none.
+The **evaluation harness** uses `FileEvidenceStore` with a git-ignored folder (the files contain paystub text). A production caller would typically pass none.
 
 ### 8.5 Package layout
 
@@ -514,7 +520,7 @@ idp-paystub-usecase/
 │   ├── checks.py               # grounding, net reconciliation, Social Security gap, federal taxable wages
 │   ├── rules.py                # rule engine R1–R10
 │   ├── agi.py                  # AGI formula (agi.py reference)
-│   ├── store.py                # EvidenceStore interface + FileEvidenceStore
+│   ├── store.py                # EvidenceStore interface + FileEvidenceStore (OCR reads only)
 │   └── analyzer.py             # PaystubAnalyzer: wires the steps together
 ├── config/default.yaml         # documented defaults
 ├── evaluation/                 # POC harness, NOT part of the package
@@ -568,7 +574,7 @@ idp-genai = { git = "https://github.com/maximus-idp/idp-genai", branch = "featur
 | Architecture (this file) | `docs/architecture.md` |
 | Running notes and history | `summary.md` |
 | Local sample PDFs (not committed) | `docs/paystubs/` |
-| Saved evidence (evaluation only) | `evaluation/evidence/<model>/<folder>/<stub>.json` (proposed) |
+| Saved OCR reads (evaluation only) | a git-ignored folder under `data/`, one `<fingerprint>.json` per read (proposed) |
 | Evaluation results | `evaluation/results/<run_id>/` (proposed) |
 | AGI reference | `agi.py` in the repo `idp-paystub-model-comparison/paystub-extractor` |
 
@@ -608,5 +614,5 @@ General capabilities, with no tax rules:
 | **Imputed income** | Taxable non-cash benefit, e.g. employer-paid life insurance over $50k. |
 | **Textract** | AWS service that reads text from scanned documents. |
 | **Bedrock Converse / Mantle** | Two ways `idp-genai` can call models on AWS Bedrock. Mantle is OpenAI-compatible. The caller picks one. |
-| **Evidence store** | Optional place to save OCR and model output so they can be reused without calling the services again. Off by default. |
+| **Evidence store** | Optional place to save the OCR read so Textract isn't called again for the same stub. The model is always called again. Off by default. |
 | **`needs_review`** | The rules can't decide from the evidence; a person must check. |

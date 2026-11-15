@@ -411,7 +411,7 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 9 | Page-image rendering is repeatable (checked on stub_0006). | — | No longer needed for keys (DL-039). | Closed |
 | 10 | **Design:** the protocol has only `get`/`put`; the in-memory test store is a real implementation; no folder or bucket name is in `src/`. | — | — | OK |
 | 11 | **Design change (user, DL-039):** reusing a saved model answer hides run-to-run variation. Removed the answer cache and the extraction fingerprint; the store keeps only the OCR read. | — | — | Done |
-| 12 | `docs/architecture.md` section 8.4 still describes saving the model's answer (and "fair comparisons" by reusing it). | Low (docs) | Needs the user's OK to edit the architecture doc. | Open |
+| 12 | `docs/architecture.md` section 8.4 still describes saving the model's answer (and "fair comparisons" by reusing it). | Low (docs) | User approved; updated 8.4, the flow diagram, the corrected-keys row, the API comment, "Where things live" and the glossary entry. | Fixed |
 
 <!-- Template:
 ### F<n> review (date)
