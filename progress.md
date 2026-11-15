@@ -168,7 +168,20 @@ Built in slices, each committed green:
 4. **Scoring and report** (`evaluation/score.py`, `evaluation/report.py`): 7b, 7c with buckets, 7d exact; CSVs + summary.
 5. **Command line** (`evaluation/__main__.py`) and the **pilot** (5 stubs × 1 model, with the user's OK).
 
-**Behaviours:** listed per slice as they're built.
+**Status (2026-11-15):** slices 1–5 done and committed (708 tests pass). All 82 stubs downloaded to `data/paystubs/` (real S3 prefix `datasets/paystubs/`). Free-reader check: 14 stubs read without OCR, 68 need Textract; 7 have 2 pages (2 of them scanned, which fail under `sync`, DL-042).
+
+**Pilot (Opus, 5 stubs):**
+| Run | Result | Cause | Fix |
+|---|---|---|---|
+| pilot-1 | crashed | `TextractReader(client=...)` wants idp-ocr's private adapter, not a boto3 client; Opus rejected `temperature` | Reader builds its own client; per-model temperature (DL-042) |
+| pilot-2 | 5/5 `schema_invalid` | Opus 5 wrapped its forced-tool answer in `input` (4) or added a stray key (1) | Per-model `schema_method: prompt` for Opus (user's choice) |
+| pilot-3 | 5/5 `ok` | — | Scoring fix: the keys list taxes among deductions; those now pair with our tax lines |
+
+**pilot-3 score:** rows: 15 agree, 23 tax lines, 4 employer rows, **0 disagreements, 0 missing**. AGI exact 2/5. The 3 gaps:
+- `generated_scanned/stub01`, `stub03`: an earnings row "Award / Other" is a bonus in the key but isn't in `one_time_earnings` [bonus, overtime], so we annualise it (+$2,500, +$3,125). → Q27.
+- `generated_complicated/stub01`: we use the printed federal taxable wages (DL-024, deliberately unlike `agi.py`); the key also counts "Extra Hours" as overtime here, but not on the scanned stubs ("Extra Hours" 150.00 / 205.20 is regular pay in those keys). → Q28. The model also missed the pay date on this stub.
+
+**Calls so far:** Opus 15 extraction calls (10 rejected before any output) + 6 one-line probe calls; Textract 4 pages (saved, reused).
 
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
@@ -248,6 +261,8 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q24 | Several stubs from one employer | — | **Answered: out of scope** (DL-028). |
 | Q25 | What does a **lone** bracketed amount mean, e.g. `Medical (85.00)`: money taken out, or taxable wages (source document)? The two-amount tax line `Federal Income Tax (965.70) 120.00` is taxable wages. | Brackets also commonly mean "deducted"; nobody on the project knows | **Open with the business.** Until then such stubs go to review (DL-037). |
 | Q26 | Disputed keys (reported separately in 7c): `advs_paystubs/stub_0010` is clear, but **`stub07` exists in two folders** (`generated_complicated` and `generated_scanned`). Which one is disputed? | Wrong bucket for the other stub | Ask the user |
+| Q27 | Should "award" count as one-time pay (like bonus)? The keys treat "Award / Other" as a bonus. | +$2,500 and +$3,125 AGI on two pilot stubs | Add `award` to `agi.one_time_earnings` |
+| Q28 | "Extra Hours" is overtime in one key (`generated_complicated/stub01`) but regular pay in others (`generated_scanned/stub01`, `stub03`). Which is right? | Keys look inconsistent; affects one-time pay | Ask the business; don't add a keyword yet |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -498,3 +513,4 @@ _Phase not started. Items queued from reviews:_
   - Completed F9 (DL-038), tests first: file store, typed load/save, content-fingerprint keys and the extraction fingerprint. 556 tests pass, 100% coverage. Open points for F10 (S3 bytes for the key, no `Document` from the store) and F11 (provider in the key).
   - User: the model must be called on every run (answers vary). Removed the answer cache and fingerprint; the store keeps only the OCR read (DL-039). 551 tests pass, 100% coverage.
   - Completed F10 (DL-040), tests first: `PaystubAnalyzer` + `create`, stub status, saved reads with re-rendered images, model called every run, public API. 582 tests pass, 100% coverage. stub_0006 end to end (free reader, canned answer): `ok`, $45,760, no flags.
+  - F11 slices 1–5 (DL-041, DL-042), tests first: harness settings, clients, download, run, scoring, report, CLI. 82 stubs downloaded. Pilot on Opus × 5 stubs after three fixes: all `ok`, 0 row disagreements, AGI exact 2/5 (gaps traced to one-time pay, Q27/Q28). 708 tests pass.
