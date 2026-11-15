@@ -47,6 +47,7 @@
 | DL-039 | 2026-11-15 | Store | Only the OCR read is saved; the model is called on every run, never reused | Active |
 | DL-040 | 2026-11-15 | Analyzer | Stub status rules, errors raised, one analyzer per model, result contents, path/S3 input | Active |
 | DL-041 | 2026-11-15 | Evaluation | Harness setup: 4 models, text only, PDFs downloaded once, pilot first, exact AGI match, Textract sync, no baseline yet | Active |
+| DL-042 | 2026-11-15 | Evaluation | Temperature set per model in the harness (Opus 5/Sonnet 5 reject it); 2-page scans left failing under sync | Active |
 
 ---
 
@@ -421,4 +422,11 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Textract:** `mode: sync` by default (DL-035).
 - **Not now:** the baseline adapter (old model outputs through our rules).
 - **Where settings live:** a harness YAML file (`evaluation/config.yaml`, git-ignored; `evaluation/config.example.yaml` committed with placeholders). Region, bucket, model IDs and retry settings live there; credentials come from the AWS profile only.
+- **Approved by:** user (2026-11-15).
+
+## DL-042: Per-model temperature; 2-page scans (pilot findings)
+- **Finding:** the first pilot run failed every Opus call. A direct check showed Bedrock rejects any `temperature` for **Opus 5 and Sonnet 5** ("`temperature` is deprecated for this model"); **Gemma 3 27B and GPT-OSS 120B** accept `temperature: 0` and our forced-tool schema (checked with one tiny call each).
+- **Decision:** each model in the harness settings may set `temperature`. When given (even as `null`), it replaces the component's `extraction.temperature` for that model only; otherwise the component value (0, DL-036) applies. Opus and Sonnet use `null`; Gemma and GPT use `0`.
+- **Also decided:** the 2 two-page scanned stubs (`generated_scanned/stub06`, `stub17`) stay failing under Textract `sync` for now (no staging bucket).
+- **Alternative:** `temperature: null` for every model (less repeatable for the models that support 0).
 - **Approved by:** user (2026-11-15).

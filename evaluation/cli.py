@@ -73,6 +73,16 @@ def select_stubs(refs: Sequence[StubRef], ids: Sequence[str] | None) -> list[Stu
     return [known[i] for i in ids]
 
 
+def component_config_for(
+    config: AnalyzerConfig, model: ModelSettings
+) -> AnalyzerConfig:
+    """Some models reject any temperature (e.g. Opus 5), so it can be set per model."""
+    if "temperature" not in model.model_fields_set:
+        return config
+    extraction = config.extraction.model_copy(update={"temperature": model.temperature})
+    return config.model_copy(update={"extraction": extraction})
+
+
 def run_command(
     models: Sequence[ModelSettings],
     refs: Sequence[StubRef],
@@ -158,7 +168,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         def factory(model: ModelSettings) -> Analyzer:
             return PaystubAnalyzer.create(
-                config,
+                component_config_for(config, model),
                 genai=build_genai(session, settings.aws, model),
                 model=model.model_id,
                 readers={"textract": textract},

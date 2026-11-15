@@ -7,6 +7,7 @@ import pytest
 
 from evaluation.answer_keys import AnswerKey
 from evaluation.cli import (
+    component_config_for,
     load_outcomes,
     parse_args,
     run_command,
@@ -17,6 +18,7 @@ from evaluation.cli import (
 from evaluation.download import StubRef
 from evaluation.run import StubOutcome
 from evaluation.settings import HarnessSettings, ModelSettings
+from paystub_agi.config import AnalyzerConfig
 from paystub_agi.errors import ConfigError, ExtractionError
 from paystub_agi.models import AgiResult, PaystubEvidence, PaystubResult, StubStatus
 
@@ -139,6 +141,30 @@ def test_eval_cli_named_models_only() -> None:
 def test_eval_cli_unknown_model_is_a_config_error() -> None:
     with pytest.raises(ConfigError, match="sonnet"):
         select_models(SETTINGS, ["sonnet"])
+
+
+# --- per-model temperature (pilot finding) ------------------------------------------
+
+
+def test_eval_cli_model_without_temperature_keeps_the_component_setting() -> None:
+    model = ModelSettings(name="gpt", model_id="m")
+
+    config = component_config_for(AnalyzerConfig(), model)
+
+    assert config.extraction.temperature == 0
+
+
+@pytest.mark.parametrize("temperature", [None, 0.0, 0.5])
+def test_eval_cli_model_temperature_overrides_the_component(
+    temperature: float | None,
+) -> None:
+    model = ModelSettings(name="opus", model_id="m", temperature=temperature)
+
+    config = component_config_for(AnalyzerConfig(), model)
+
+    assert config.extraction.temperature == temperature
+    assert config.extraction.max_output_tokens == 8192
+    assert config.rules == AnalyzerConfig().rules
 
 
 def test_eval_cli_all_stubs_when_none_named() -> None:

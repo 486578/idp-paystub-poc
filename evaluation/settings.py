@@ -71,6 +71,8 @@ class ModelSettings(_Settings):
     name: FolderName
     model_id: NonBlank
     provider: Literal["converse", "mantle"] = "converse"
+    # When given (even as null), replaces the component's extraction.temperature.
+    temperature: Annotated[float, Field(ge=0)] | None = None
 
 
 def _unique_names(models: tuple[ModelSettings, ...]) -> tuple[ModelSettings, ...]:

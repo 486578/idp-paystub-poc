@@ -141,6 +141,15 @@ def test_eval_settings_example_file_is_valid() -> None:
         "google.gemma-3-27b-it",
         "openai.gpt-oss-120b-1:0",
     ]
+    # Verified 2026-11-15: Opus 5 and Sonnet 5 reject any temperature.
+    assert [m.temperature for m in settings.models] == [None, None, 0, 0]
+
+
+def test_eval_settings_model_temperature_must_not_be_negative() -> None:
+    models = [{"name": "a", "model_id": "m", "temperature": -1}]
+
+    with pytest.raises(ValueError, match="temperature"):
+        HarnessSettings.model_validate(_settings(models=models))
 
 
 def test_eval_component_config_is_text_only() -> None:

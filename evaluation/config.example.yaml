@@ -23,10 +23,12 @@ textract:
   staging_bucket: null
 
 models:                    # provider: converse (default) | mantle (only where required)
-  - {name: opus, model_id: us.anthropic.claude-opus-5}
-  - {name: sonnet, model_id: us.anthropic.claude-sonnet-5}
-  - {name: gemma, model_id: google.gemma-3-27b-it}
-  - {name: gpt, model_id: openai.gpt-oss-120b-1:0}
+  # temperature: replaces extraction.temperature for that model; Opus 5 and Sonnet 5
+  # reject any temperature (checked 2026-11-15), so theirs is null.
+  - {name: opus, model_id: us.anthropic.claude-opus-5, temperature: null}
+  - {name: sonnet, model_id: us.anthropic.claude-sonnet-5, temperature: null}
+  - {name: gemma, model_id: google.gemma-3-27b-it, temperature: 0}
+  - {name: gpt, model_id: openai.gpt-oss-120b-1:0, temperature: 0}
 
 # Keys known to be wrong, as folder/stub (reported separately).
 disputed_stubs:
