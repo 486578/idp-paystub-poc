@@ -43,6 +43,7 @@
 | DL-035 | 2026-11-13 | Reading | Textract sync/async is a caller setting (`textract.mode`), built with F11 | Active (planned) |
 | DL-036 | 2026-11-13 | Extraction | Extraction settings (images auto, temperature 0, 8192 tokens); no retries in the component; failures raise `ExtractionError` | Active |
 | DL-037 | 2026-11-13 | Extraction / Checks | A lone bracketed amount is recorded (`in_brackets`) and sends the stub to review until its meaning is known | Active (temporary) |
+| DL-038 | 2026-11-15 | Store | Evidence store: content fingerprints, OCR read and model answer saved separately, damaged files stop with an error | Active |
 
 ---
 
@@ -378,3 +379,14 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Why:** don't guess; a clear review flag instead of a possibly wrong number.
 - **Supersedes:** my earlier F8 assumption that a lone bracketed amount is simply a deduction (made without asking).
 - **Approved by:** user (2026-11-13, "option 3").
+
+## DL-038: Evidence store design (F9)
+- **Decision:**
+  1. **Same stub** = same file **contents** (a SHA-256 fingerprint), not the file name.
+  2. **Two saved items:** the OCR read (shared by every model, so Textract is paid once per stub) and the model's answer (one per model setup).
+  3. **OCR read key:** file contents + `reading.strategy` + the saved format. **Answer key:** the OCR text + the images sent + an automatic fingerprint of the model ID, prompt, schema and extraction settings. Any change to the prompt or schema means a fresh call; there is no version number to remember.
+  4. **Saved:** the OCR text and reader name, and the extracted evidence. **Not** page images (big, rebuilt from the PDF) or the OCR library's full document.
+  5. A damaged or unreadable saved item raises `StoreError` (no silent re-run). The message never contains document values.
+  6. File names are the fingerprint (64 hex characters) + `.json`; any other key is refused. Files are written to a temporary file first, then swapped in, so a crash can't leave a half-written file.
+- **Where:** `store.py` (`EvidenceStore` protocol with `get`/`put`, `FileEvidenceStore`, key builders, typed load/save). The folder comes from the caller and must be git-ignored (e.g. under `data/`).
+- **Approved by:** user (2026-11-15).

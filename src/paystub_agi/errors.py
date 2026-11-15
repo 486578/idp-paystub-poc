@@ -31,3 +31,7 @@ class ExtractionError(PaystubAgiError):
     def __init__(self, message: str, *, code: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+class StoreError(PaystubAgiError):
+    """A saved item couldn't be read, written or trusted."""
