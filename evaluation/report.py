@@ -138,7 +138,9 @@ def write_report(scores: Sequence[StubScore], folder: Path) -> None:
         "|---|---|---|---|",
     ]
     summaries = summarize(scores)
-    lines += [f"| {m.model} | {m.stubs} | {m.failed} | {m.agi_exact} |" for m in summaries]
+    lines += [
+        f"| {m.model} | {m.stubs} | {m.failed} | {m.agi_exact} |" for m in summaries
+    ]
     for m in summaries:
         lines += [
             "",

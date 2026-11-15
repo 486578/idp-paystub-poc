@@ -3,7 +3,6 @@
 Nothing here is part of the component: the component only receives these objects.
 """
 
-from pathlib import Path
 from typing import Any, Protocol
 
 from botocore.config import Config
@@ -24,10 +23,6 @@ from evaluation.settings import (
 
 class Session(Protocol):
     def client(self, service_name: str, **kwargs: Any) -> Any: ...
-
-
-class S3Client(Protocol):
-    def download_file(self, Bucket: str, Key: str, Filename: str) -> None: ...  # noqa: N803
 
 
 def boto_config(retries: RetrySettings) -> Config:
@@ -69,13 +64,3 @@ def build_genai(session: Any, aws: AwsSettings, model: ModelSettings) -> GenAISe
     return GenAIService.create_bedrock_service(
         client=client, capabilities=bedrock_capabilities()
     )
-
-
-class Boto3Downloader:
-    """idp-ocr's `S3Downloader` over the caller's own S3 client."""
-
-    def __init__(self, s3: S3Client) -> None:
-        self._s3 = s3
-
-    def download(self, bucket: str, key: str, path: Path) -> None:
-        self._s3.download_file(Bucket=bucket, Key=key, Filename=str(path))

@@ -1,11 +1,9 @@
-from pathlib import Path
 from typing import Any
 
 from idp_genai.service import GenAIService
 from idp_ocr import TextractReader
 
 from evaluation.clients import (
-    Boto3Downloader,
     boto_config,
     build_genai,
     build_textract,
@@ -32,14 +30,6 @@ class FakeSession:
     def client(self, service_name: str, **kwargs: Any) -> object:
         self.clients.append((service_name, kwargs))
         return object()
-
-
-class FakeS3:
-    def __init__(self) -> None:
-        self.downloads: list[tuple[str, str, str]] = []
-
-    def download_file(self, Bucket: str, Key: str, Filename: str) -> None:  # noqa: N803
-        self.downloads.append((Bucket, Key, Filename))
 
 
 def test_eval_clients_retry_config_comes_from_settings() -> None:
@@ -91,11 +81,3 @@ def test_eval_clients_mantle_service_uses_the_session_not_a_client() -> None:
     assert isinstance(service, GenAIService)
     assert service.capabilities.image_media_types == ()
     assert session.clients == []
-
-
-def test_eval_clients_downloader_copies_the_object_to_the_path(tmp_path: Path) -> None:
-    s3 = FakeS3()
-
-    Boto3Downloader(s3).download("bucket", "a/b.pdf", tmp_path / "x.pdf")
-
-    assert s3.downloads == [("bucket", "a/b.pdf", str(tmp_path / "x.pdf"))]
