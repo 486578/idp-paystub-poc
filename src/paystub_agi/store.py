@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt, ValidationError
 
 from paystub_agi.config import ReadingConfig
 from paystub_agi.errors import StoreError
@@ -28,6 +28,7 @@ class StoredRead(BaseModel):
 
     text: str = Field(repr=False)
     reader: str
+    pages: tuple[PositiveInt, ...]
 
 
 class EvidenceStore(Protocol):

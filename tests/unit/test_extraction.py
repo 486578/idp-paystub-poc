@@ -7,7 +7,6 @@ from idp_core.exceptions import UnsupportedInputError
 from idp_core.models import (
     AttemptContext,
     CallMetrics,
-    Document,
     ModelCapabilities,
     ModelRequest,
     ModelResult,
@@ -80,12 +79,7 @@ def _parsed(data: object) -> ParsedResponse:
 
 
 def _stub(*images: PageImage) -> ReadStub:
-    return ReadStub(
-        document=Document(document_id="doc", pages=()),
-        text=OCR_TEXT,
-        reader="pdfplumber",
-        images=images,
-    )
+    return ReadStub(text=OCR_TEXT, reader="pdfplumber", pages=(1,), images=images)
 
 
 class FakeGenAI:

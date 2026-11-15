@@ -379,7 +379,7 @@ def test_reading_every_reader_failing_raises_with_code(pdf: Path) -> None:
 # --- result content -----------------------------------------------------------------------
 
 
-def test_reading_result_holds_document_and_text(pdf: Path) -> None:
+def test_reading_result_holds_page_numbers_and_text(pdf: Path) -> None:
     readers = {
         "pdfplumber": _FakeReader("pdfplumber", words=("Gross", "Pay")),
         "textract": _FakeReader("textract"),
@@ -388,7 +388,7 @@ def test_reading_result_holds_document_and_text(pdf: Path) -> None:
     stub = _reader(readers=readers).read(str(pdf), images=False)
 
     assert stub.text == "--- Page 1 ---\nGross Pay"
-    assert [p.page_number for p in stub.document.pages] == [1]
+    assert stub.pages == (1,)
 
 
 def test_reading_without_images_does_not_render(pdf: Path) -> None:
@@ -444,6 +444,54 @@ def test_reading_renders_at_most_max_images_pages(pdf: Path) -> None:
     reader.read(str(pdf), images=True)
 
     assert renderer.calls[0]["pages"] == (1, 2)
+
+
+# --- the steps the analyzer uses (local copy, read, render) --------------------------
+
+
+def test_reading_local_copy_of_a_local_file_is_the_file(pdf: Path) -> None:
+    with _reader().local_copy(str(pdf)) as path:
+        assert path == pdf
+    assert pdf.exists()
+
+
+def test_reading_local_copy_of_s3_is_deleted_afterwards() -> None:
+    reader = _reader(downloader=_FakeDownloader())
+
+    with reader.local_copy("s3://bucket/stub.pdf") as path:
+        assert path.read_bytes() == b"%PDF-1.4"
+    assert not path.exists()
+
+
+def test_reading_local_copy_of_missing_file_raises(tmp_path: Path) -> None:
+    with pytest.raises(ReadingError, match="not found"):
+        with _reader().local_copy(str(tmp_path / "absent.pdf")):
+            pass
+
+
+def test_reading_read_file_reads_a_local_path(pdf: Path) -> None:
+    stub = _reader().read_file(pdf, images=False)
+
+    assert (stub.reader, stub.pages) == ("pdfplumber", (1,))
+
+
+def test_reading_render_uses_the_given_pages_up_to_max_images(pdf: Path) -> None:
+    renderer = _FakeRenderer()
+
+    images = _reader(renderer=renderer, max_images=2).render(pdf, (1, 2, 3))
+
+    assert renderer.calls[0]["pages"] == (1, 2)
+    assert [i.page_number for i in images] == [1, 2]
+
+
+def test_reading_render_library_error_is_wrapped(tmp_path: Path) -> None:
+    def failing(*args: object, **kwargs: object) -> tuple[LibraryPageImage, ...]:
+        raise InvalidInputError("A requested PDF page does not exist.")
+
+    reader = IdpOcrStubReader(ReadingConfig(strategy=("pdfplumber",)), renderer=failing)
+
+    with pytest.raises(ReadingError, match="images"):
+        reader.render(tmp_path / "stub.pdf", (1,))
 
 
 # --- sources -------------------------------------------------------------------------------

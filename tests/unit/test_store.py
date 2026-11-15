@@ -17,7 +17,9 @@ from paystub_agi.store import (
 KEY = "a" * 64
 OTHER_KEY = "b" * 64
 PDF = b"%PDF-1.7 synthetic stub"
-READ = StoredRead(text="--- Page 1 ---\nNet Pay 1,224.70", reader="textract")
+READ = StoredRead(
+    text="--- Page 1 ---\nNet Pay 1,224.70", reader="textract", pages=(1, 2)
+)
 
 
 class MemoryStore:

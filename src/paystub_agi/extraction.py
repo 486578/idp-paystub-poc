@@ -84,6 +84,15 @@ class GenAI(Protocol):
     ) -> ParsedResponse: ...
 
 
+class Extractor(Protocol):
+    """What the analyzer needs from the extraction step."""
+
+    @property
+    def wants_images(self) -> bool: ...
+
+    def extract(self, stub: ReadStub) -> PaystubEvidence: ...
+
+
 def _schema_problems(error: ValidationError) -> str:
     """Field locations and error types only; never the model's (document) values."""
     return "; ".join(

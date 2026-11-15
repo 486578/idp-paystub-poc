@@ -45,6 +45,7 @@
 | DL-037 | 2026-11-13 | Extraction / Checks | A lone bracketed amount is recorded (`in_brackets`) and sends the stub to review until its meaning is known | Active (temporary) |
 | DL-038 | 2026-11-15 | Store | Evidence store: content fingerprints, OCR read and model answer saved separately, damaged files stop with an error | Partly superseded by DL-039 |
 | DL-039 | 2026-11-15 | Store | Only the OCR read is saved; the model is called on every run, never reused | Active |
+| DL-040 | 2026-11-15 | Analyzer | Stub status rules, errors raised, one analyzer per model, result contents, path/S3 input | Active |
 
 ---
 
@@ -397,4 +398,14 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Why (user):** the same model can give different answers for the same stub, so reusing a saved answer hides that variation; reusing it "doesn't make sense at all".
 - **Removed:** the answer key (`evidence_key`) and the model-setup fingerprint (`EvidenceExtractor.fingerprint`). DL-038 items 1, 5 and 6 (content fingerprint, damaged-file error, safe file names) still apply to the OCR read.
 - **Consequences:** each evaluation run pays for one model call per stub per model; OCR is still paid once per stub. Run-to-run differences between answers become visible, which is wanted.
+- **Approved by:** user (2026-11-15).
+
+## DL-040: Analyzer behaviour (F10)
+- **Decision:**
+  1. **Stub status:** `invalid` when gross or taxable wages are $0.00 (DL-026); otherwise `needs_review` when any flag has `send_to_review` (e.g. brackets, DL-037), any deduction is `needs_review`, or AGI couldn't be calculated; otherwise `ok`. `invalid` wins, because there is no AGI to review.
+  2. **Failures:** a reading or model failure raises `ReadingError` / `ExtractionError`; no result is returned. The evaluation harness records the stub as failed.
+  3. **One analyzer per model.** Several analyzers can share one store, so OCR is still paid once per stub.
+  4. **Result:** status, the AGI result, every deduction decision (rule + quoted evidence), all flags, the checks that couldn't run, the extracted evidence, the reader used and whether the read came from the store. **Not** the OCR text.
+  5. **Input:** a local path or `s3://` URI (DL-031). An S3 file is downloaded once to a temporary file, used for the fingerprint, OCR and page images, then deleted.
+- **Design:** `PaystubAnalyzer(config, reader=..., extractor=..., store=None)` only wires the steps (dependency injection); `PaystubAnalyzer.create(config, genai=..., model=..., readers=..., downloader=..., store=...)` builds the standard parts for callers. `ReadStub` now keeps the page numbers instead of the OCR library's document, so a read loaded from the store is complete and page images can be re-rendered.
 - **Approved by:** user (2026-11-15).

@@ -5,7 +5,7 @@
 
 **Last updated:** 2026-11-15
 **Current phase:** 1. Core logic
-**Next action:** F10 (analyzer wiring).
+**Next action:** F11 (evaluation harness).
 
 ---
 
@@ -27,7 +27,7 @@ Order: pure, offline logic first; then the library wrappers; then wiring; then e
 | F7 | OCR reading wrapper (words + tables, optional page images) | `reading.py` | F0 | ✅ | |
 | F8 | Evidence extraction: schema, prompt, `idp-genai` call | `extraction.py` | F2, F7 | ✅ | |
 | F9 | Evidence store (interface + file store) | `store.py` | F2 | ✅ | |
-| F10 | `PaystubAnalyzer` wiring + public API; stub status `needs_review` when any flag has `send_to_review` (incl. stub-level, DL-037); OCR read from the store when saved, model called on every run (DL-039) | `analyzer.py`, `__init__.py` | F3–F9 | ⬜ | |
+| F10 | `PaystubAnalyzer` wiring + public API; stub status `needs_review` when any flag has `send_to_review` (incl. stub-level, DL-037); OCR read from the store when saved, model called on every run (DL-039) | `analyzer.py`, `__init__.py` | F3–F9 | ✅ | |
 | F11 | Evaluation harness: download, run, baseline adapter, scoring 7a–7d, report; Textract `mode: sync \| async` setting (DL-035) | `evaluation/` | F10 | ⬜ | |
 | F12 | "Break it" phase | all | F1–F11 | ⬜ | |
 | F13 | Hand-verification support (~20 stubs: record evidence, then labels) | `evaluation/` | F11 | ⬜ | business answers |
@@ -151,6 +151,14 @@ Each feature follows AGENTS.md section 6: plan behaviours → TDD → checks gre
 - **Behaviours:** all done (file store, read round trip in memory and on disk, every key input, safe file names). Verified red before green; the answer-cache tests were removed with DL-039.
 
 **Checks:** ruff ✅ format ✅ mypy ✅ tests ✅ (551 passed, 2 integration deselected) coverage ✅ (100% line + branch; `store.py` 100%)
+
+### F10: Analyzer ✅ (DL-040; `tests/unit/test_analyzer.py` 23 tests, `test_public_api.py` 1, `tests/acceptance/test_analyzer_local_pdf.py` 2; reading +6)
+- **API:** `PaystubAnalyzer(config, reader=..., extractor=..., store=None).analyze(source) -> PaystubResult`; `PaystubAnalyzer.create(config, genai=..., model=..., readers=..., downloader=..., store=...)` builds the standard parts. The package exports the analyzer, config, result, status, file store and errors.
+- **Flow:** local copy (S3 downloaded once) → saved read or OCR (then saved) → model (every run) → rules → checks with the OCR text → review → AGI → status.
+- **Status (DL-040):** `invalid` ($0.00) wins; else `needs_review` for any review flag, any `needs_review` row or no AGI; else `ok`.
+- **Reading changes:** `ReadStub` keeps page numbers instead of the OCR library's document; the reader exposes `local_copy`, `read_file` and `render`; saved reads keep page numbers so images can be re-rendered.
+- **Behaviours:** all done, verified red before green.
+- **Real check (free, local):** stub_0006 through `create` with pdfplumber and a canned model answer: status `ok`, AGI $45,760 (the key's value), **no flags**; the second run loads the saved read and gives the same result.
 
 ### F4 preparation: what `agi.py` actually does (read 2026-11-05)
 Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are **facts from the reference**, to be ported exactly:
@@ -413,6 +421,19 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 11 | **Design change (user, DL-039):** reusing a saved model answer hides run-to-run variation. Removed the answer cache and the extraction fingerprint; the store keeps only the OCR read. | — | — | Done |
 | 12 | `docs/architecture.md` section 8.4 still describes saving the model's answer (and "fair comparisons" by reusing it). | Low (docs) | User approved; updated 8.4, the flow diagram, the corrected-keys row, the API comment, "Where things live" and the glossary entry. | Fixed |
 
+### F10 review (2026-11-15)
+| # | Finding | Severity | Fix | Status |
+|---|---|---|---|---|
+| 1 | `PaystubResult`'s default `repr` printed the evidence, decisions, flags and AGI, so logging a result would leak document values and income. | High (data in logs) | Test first; those fields are hidden from `repr` (status, reader and store use stay visible). | Fixed |
+| 2 | **Real stub finding:** on stub_0006 the payroll-tax gap check doesn't run, because the stub prints "FICA SS" and "FICA Me" and our labels are "social security"/"oasdi"/"soc sec" and "medicare". It's reported in `checks_not_run`, not hidden. | Medium | Ask the user: add `fica ss` and `fica me`/`fica med` (relates to Q14 group C). | Open |
+| 3 | Grounding flags alone leave a stub `ok` (DL-019, tested). | — | Q15. | Open |
+| 4 | With a store, an `s3://` stub is still downloaded on every run (the fingerprint needs its bytes). That's a cheap S3 read, never a Textract call. | Low | — | Accepted |
+| 5 | A model failure after a fresh read still leaves the read saved, so a retry doesn't pay Textract again (tested via the store flow). | — | — | OK |
+| 6 | The status rule (DL-040) is the only decision in `analyzer.py`; everything else is wiring. | Low (SRP) | Kept: a few lines, one place, fully tested. | Accepted |
+| 7 | F5 #8 / F6 #7: nothing in the analyzer logs. | — | — | OK |
+| 8 | F4 #5: the "exceeds regular pay" warning is still only checked for `agi`, not `agi_if_review_pretax`. | Low | Revisit in F11 if the review range is reported. | Open |
+| 9 | `docs/architecture.md` 8.1 shows an older API sketch (`genai=`, `reader=None`, `analyzer.read/extract`). | Low (docs) | Needs the user's OK to update. | Open |
+
 <!-- Template:
 ### F<n> review (date)
 | # | Finding | Severity | Fix (test first) | Status |
@@ -465,3 +486,4 @@ _Phase not started. Items queued from reviews:_
 - **2026-11-15:**
   - Completed F9 (DL-038), tests first: file store, typed load/save, content-fingerprint keys and the extraction fingerprint. 556 tests pass, 100% coverage. Open points for F10 (S3 bytes for the key, no `Document` from the store) and F11 (provider in the key).
   - User: the model must be called on every run (answers vary). Removed the answer cache and fingerprint; the store keeps only the OCR read (DL-039). 551 tests pass, 100% coverage.
+  - Completed F10 (DL-040), tests first: `PaystubAnalyzer` + `create`, stub status, saved reads with re-rendered images, model called every run, public API. 582 tests pass, 100% coverage. stub_0006 end to end (free reader, canned answer): `ok`, $45,760, no flags.

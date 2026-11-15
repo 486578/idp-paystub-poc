@@ -4,7 +4,8 @@ Produces the OCR document, a plain-text rendering for the model and the groundin
 check, and page images only when asked. Nothing here interprets the content.
 """
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from typing import Literal, Protocol
@@ -39,14 +40,19 @@ class ReadStub(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    document: Document
     text: str = Field(repr=False)
     reader: str
+    # Page numbers read, so page images can be rendered again later.
+    pages: tuple[PositiveInt, ...]
     images: tuple[PageImage, ...] = Field(repr=False)
 
 
 class StubReader(Protocol):
-    def read(self, source: str, *, images: bool) -> ReadStub: ...
+    def local_copy(self, source: str) -> AbstractContextManager[Path]: ...
+
+    def read_file(self, path: Path, *, images: bool) -> ReadStub: ...
+
+    def render(self, path: Path, pages: Sequence[int]) -> tuple[PageImage, ...]: ...
 
 
 class Renderer(Protocol):
@@ -156,6 +162,12 @@ class IdpOcrStubReader:
         self._renderer = renderer
 
     def read(self, source: str, *, images: bool) -> ReadStub:
+        with self.local_copy(source) as path:
+            return self.read_file(path, images=images)
+
+    @contextmanager
+    def local_copy(self, source: str) -> Iterator[Path]:
+        """A local path to the stub; an S3 file is downloaded and deleted afterwards."""
         if source.startswith(_S3):
             bucket, key = _s3_location(source)
             if self._downloader is None:
@@ -166,42 +178,46 @@ class IdpOcrStubReader:
                     self._downloader.download(bucket, key, path)
                 except IdpError as exc:
                     raise ReadingError("could not download the paystub") from exc
-                return self._read_file(path, images)
+                yield path
+            return
         path = Path(source)
         if not path.is_file():
             raise ReadingError("paystub file not found")
-        return self._read_file(path, images)
+        yield path
 
-    def _read_file(self, path: Path, images: bool) -> ReadStub:
+    def read_file(self, path: Path, *, images: bool) -> ReadStub:
         try:
             outcome = read_document(
                 path, auto=False, readers=self._readers, features=_FEATURES
             )
-            if outcome.status != "accepted" or outcome.accepted is None:
-                raise ReadingError(
-                    f"no reader produced usable text ({outcome.error_code})",
-                    code=outcome.error_code,
-                )
-            document = outcome.accepted.result.document
-            pictures = self._render(path, document) if images else ()
         except IdpError as exc:
             raise ReadingError("the OCR library could not read the paystub") from exc
+        if outcome.status != "accepted" or outcome.accepted is None:
+            raise ReadingError(
+                f"no reader produced usable text ({outcome.error_code})",
+                code=outcome.error_code,
+            )
+        document = outcome.accepted.result.document
+        pages = tuple(page.page_number for page in document.pages)
         return ReadStub(
-            document=document,
             text=document_text(document),
             reader=outcome.accepted.reader,
-            images=pictures,
+            pages=pages,
+            images=self.render(path, pages) if images else (),
         )
 
-    def _render(self, path: Path, document: Document) -> tuple[PageImage, ...]:
-        pages = [page.page_number for page in document.pages][: self._config.max_images]
-        rendered = self._renderer(
-            path,
-            pages,
-            dpi=self._config.image_dpi,
-            max_side=self._config.image_max_side,
-            grayscale=self._config.grayscale,
-        )
+    def render(self, path: Path, pages: Sequence[int]) -> tuple[PageImage, ...]:
+        """Page images of the given pages, at most `max_images` of them."""
+        try:
+            rendered = self._renderer(
+                path,
+                list(pages)[: self._config.max_images],
+                dpi=self._config.image_dpi,
+                max_side=self._config.image_max_side,
+                grayscale=self._config.grayscale,
+            )
+        except IdpError as exc:
+            raise ReadingError("could not render page images") from exc
         return tuple(
             PageImage(page_number=i.page_number, media_type=i.media_type, data=i.data)
             for i in rendered

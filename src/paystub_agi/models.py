@@ -207,3 +207,23 @@ class AgiResult(_Model):
     # Source doc: $0.00 gross or taxable wages is invalid proof of income.
     invalid_proof_of_income: bool = False
     warnings: tuple[str, ...]
+
+
+class StubStatus(StrEnum):
+    OK = "ok"
+    NEEDS_REVIEW = "needs_review"
+    INVALID = "invalid"
+
+
+class PaystubResult(_Model):
+    """Everything one analysis found (DL-040). Holds document values: never log it."""
+
+    status: StubStatus
+    # Hidden from repr so logging a result can't leak income or document text.
+    agi: AgiResult = Field(repr=False)
+    decisions: tuple[DeductionDecision, ...] = Field(repr=False)
+    flags: tuple[CheckFlag, ...] = Field(repr=False)
+    checks_not_run: tuple[CheckName, ...]
+    evidence: PaystubEvidence = Field(repr=False)
+    reader: Text
+    read_from_store: bool
