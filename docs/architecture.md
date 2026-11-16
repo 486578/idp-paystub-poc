@@ -1,6 +1,6 @@
 # Paystub pre-tax classification and AGI: architecture (POC)
 
-> **Status:** draft, updated 2026-11-05. Proof of concept, not production.
+> **Status:** updated 2026-11-16 to match the built component (F0–F10) and harness (F11). Proof of concept, not production.
 > **Goal:** a **reusable, configurable component** that any caller can plug into its own pipeline, plus a separate evaluation harness for the POC.
 
 ---
@@ -61,9 +61,9 @@ One wrong label changes AGI by *amount × periods*. For example, a $100 biweekly
 | D1 | **Use `idp-ocr` + `idp-genai` directly, not `idp-processor`.** | `idp-processor` handles single-value fields only. Its README says *"tables and nested/repeating fields are out of scope"*, and deductions are a variable-length list of rows. It's built on `idp-ocr` and `idp-genai` anyway. |
 | D2 | **Get tables from `idp-ocr` (branch `feature/tables`).** | That branch adds table reading: Textract `TABLES` for scanned PDFs and pdfplumber table detection for digital PDFs. Each table comes back as rows and cells with a header row. This gives the model the row/column structure even when no page image is sent. |
 | D3 | **Use OCR words as a check, not as the main source.** | Every amount the model returns should appear in the OCR text. If it doesn't, the model may have misread or invented it. |
-| D4 | **Use `agi.py` from the model-comparison repo as the AGI reference.** | It's the formula the answer keys were calculated with, and the only one we can see. We only replace how it decides pre-tax: our rule engine instead of trusting the model's flag. |
+| D4 | **Use `agi.py` from the model-comparison repo as the AGI reference.** | It's the formula the answer keys were calculated with, and the only one we can see. We only replace how it decides pre-tax: our rule engine instead of trusting the model's flag. Where the business rules differ (printed federal taxable wages, $0.00 pay, commission, printed annual amount), the business rules win (DL-024, DL-026). |
 | D5 | **Turn disputed rules into settings.** | Several rules aren't settled yet (section 7). The pipeline is built once, and the answers only change setting values. |
-| D6 | **Keep everything in memory by default; saving is optional.** | A normal call passes results from step to step in memory and returns them. A caller *may* plug in a store to save the evidence (section 8.4), which the POC evaluation needs. |
+| D6 | **Keep everything in memory by default; saving is optional.** | A normal call passes results from step to step in memory and returns them. A caller *may* plug in a store to save the OCR read (section 8.4); the model is always called again (DL-039). |
 | D7 | **Keep the code outside the IDP libraries.** | Tax rules are business logic. The libraries stay general. The business team agreed this should be a separate component; it may later move into the income domain pack. |
 | D8 | **The caller chooses the model.** | The component takes a ready-made `idp-genai` service. Provider (Bedrock Converse, Bedrock Mantle, ...) and model are the caller's choice. If the model accepts images, page images are sent too; if not, it works from OCR text and tables only. |
 | D9 | **Install the IDP libraries from GitHub branches, not Artifactory.** | The table support we need is only on an `idp-ocr` branch so far. Installing from GitHub lets us point at the right branch of each library (section 8.6). |
@@ -111,7 +111,7 @@ The **caller** owns the input files, the model choice and whether anything is sa
 
 | Item | Path | Used for |
 |---|---|---|
-| Paystub PDFs (82, synthetic) | `datasets/pay_stubs/paystubs/<folder>/<stub>.pdf` | Main input |
+| Paystub PDFs (82, synthetic) | `datasets/paystubs/<folder>/<stub>.pdf` | Main input |
 | Answer keys | `datasets/answer_keys/<folder>/<stub>.json` | Main automated check (known errors are triaged, step 7) |
 | Model outputs from the comparison run (2026-10-14) | `runs/2026-10-14/<model>/<folder>/<stub>.json` | Baseline comparison |
 
@@ -124,9 +124,9 @@ The folders are `advs_paystubs` (10 stubs), `generated_complicated` (22) and `ge
 ```mermaid
 flowchart TD
     subgraph COMP["Component: one call to PaystubAnalyzer.analyze()"]
-        A["1. Receive stub<br/>file path or bytes from the caller"] --> B["2. Read stub (idp-ocr)<br/>words, lines, key-values, tables<br/>+ page images if the model takes images"]
+        A["1. Receive stub<br/>local path or s3:// URI"] --> B["2. Read stub (idp-ocr)<br/>words + tables<br/>+ page images if the model takes images"]
         B --> C["3. Extract evidence (idp-genai)<br/>OCR text + tables (+ images)<br/>→ caller's model<br/>evidence-only schema"]
-        C --> E["4. Checks<br/>amounts found in OCR?<br/>gross − taxes − deductions = net?<br/>Social Security wage gap<br/>federal taxable wages vs computed"]
+        C --> E["4. Checks<br/>amounts found in OCR?<br/>gross − taxes − deductions = net?<br/>Social Security wage gap<br/>federal taxable wages vs computed<br/>amounts in brackets"]
         B -- OCR words --> E
         C --> F["5. Classify each deduction<br/>rule engine + settings"]
         E -- review flags --> F
@@ -150,17 +150,15 @@ flowchart TD
 Steps 2–3 are **expensive**: they call Textract and a model. Steps 4–6 are **cheap and deterministic**: pure Python, no network.
 
 ### Step 1: Receive the stub
-The caller passes a local file path or the file bytes. Getting the file (from S3, an upload, a queue) is the caller's job. In the POC, the evaluation harness downloads PDFs from S3 with the `default` AWS profile in `us-east-1`. PDFs stay out of git.
+The caller passes a local file path or an `s3://bucket/key` URI (DL-031). An S3 file is downloaded once, through a downloader the caller supplies, to a temporary file that is used for the OCR, the fingerprint and the page images, then deleted. In the POC, the evaluation harness downloads the 82 PDFs once into the git-ignored `data/paystubs/` and runs on the local copies. PDFs stay out of git.
 
 ### Step 2: Read the stub (`idp-ocr`, branch `feature/tables`)
-- The PDF is read with words **and tables** requested. `idp-ocr` picks the method:
-  - **digital PDFs**: read the text layer and detect tables with pdfplumber (free, local). If no table is found anywhere in the document, it falls back to Textract;
-  - **scanned PDFs** (no text layer, e.g. all of `generated_scanned`): Textract with `FORMS` and `TABLES`.
-- **Output:** an `idp-core` `Document` with, for each page:
-  - **words** and **lines**, each with its position (bounding box);
-  - **key-value pairs** (e.g. "Pay Date: 07/17/2026");
-  - **tables**: rows and cells with positions, header row marked.
-- **Page images** are made with `idp_ocr.render_pages` **only if** the caller's model accepts images and the config allows it.
+- The file is read with **words and tables** requested.
+- **Reader order is a setting** (`reading.strategy`, DL-034): a list of reader names tried in order until one gives a usable read. Default `[pdfplumber, textract]`:
+  - **pdfplumber** reads a digital PDF's text layer and detects tables (free, local, built in);
+  - **Textract** (supplied by the caller) runs only when the free read looks wrong: no text, a page with no words, images covering most of a page, or no tables found. All of `generated_scanned` needs it.
+- **Output (`ReadStub`):** the document as plain text (each page's lines, then each table as a `| cell | cell |` grid), the reader used and the page numbers.
+- **Page images** are made with `idp_ocr.render_pages` **only if** the caller's model accepts images and `extraction.send_images` is `auto`; at most `reading.max_images` pages.
 - **Limitations:**
   - Textract `LAYOUT` (section titles, footers) isn't requested. Headings *above* a table and footnotes *below* it come from the OCR lines, not from a structured field.
   - pdfplumber's detector needs a header band. Sections without one aren't detected, total rows may be merged into one cell, and ruled non-table text can show up as an extra table.
@@ -176,29 +174,32 @@ The caller passes a local file path or the file bytes. Getting the file (from S3
 
   The evaluation compares both.
 - The model is told to **copy what's printed**, not to decide anything.
-- The output is checked against a strict schema. `idp-genai` rejects malformed or fenced JSON rather than repairing it.
-- **What the model returns (draft schema):**
+- The answer is validated against a strict schema (`PaystubEvidence`). Anything that doesn't fit, or a refused, cut-off or invalid answer, raises `ExtractionError` with a reason code; nothing is repaired or guessed. Error messages name fields only, never document values.
+- **What the model returns (`PaystubEvidence`):**
 
 | Level | Field | Example |
 |---|---|---|
-| Stub | `gross_current` | `1760.00` |
-| Stub | `net_current` | `1224.70` |
-| Stub | `period_start`, `period_end`, `pay_date` | `07/01/2026` … |
-| Stub | `pay_frequency_printed` | `"Biweekly"` or `null` |
-| Stub | `federal_taxable_wages_printed` | `965.70` or `null` |
-| Stub | `taxes[]`: label, amount | `"Social Security", 109.12` |
+| Stub | `gross`, `net` (this period) | `1760.00`, `1224.70` |
+| Stub | `period_start`, `period_end`, `pay_date` (ISO dates) | `2026-07-01` … |
+| Stub | `pay_frequency` (as printed) | `"Biweekly"` or `null` |
+| Stub | `federal_taxable_wages` (this period) | `965.70` or `null` |
+| Stub | `annual_amount` (printed yearly figure, never year-to-date) | `45760.00` or `null` |
+| Stub | `earnings[]`, `taxes[]`: label, amount, `in_brackets` | `"Social Security", 109.12, false` |
 | Stub | `footnotes[]`: marker, text | `"*", "Excluded from federal taxable wages"` |
-| Earnings row | label, amount, hours, rate | `"Overtime", 132.00` |
 | Deduction row | `label` (verbatim) | `"DENTAL EE/SPOUSE"` |
 | Deduction row | `amount` | `34.65` |
 | Deduction row | `section_heading` (verbatim) | `"Pre-Tax Deductions"` / `"Deductions"` |
 | Deduction row | `codes[]`: column header and value | `{"column": "Type", "value": "PRE"}` |
 | Deduction row | `markers[]` | `["*"]` |
 | Deduction row | `in_employer_section` | `true` for "Benefits" / "Employer Contributions" tables |
+| Deduction row | `in_brackets` | `true` for a lone bracketed amount, e.g. `(85.00)` (DL-037) |
 
-- **Rules for the model:**
+- **Rules for the model (the prompt):**
   - Copy text exactly; don't normalise or interpret it.
   - If something isn't printed, return `null`. Never guess.
+  - This period only; a value printed only as year-to-date counts as not printed (DL-030).
+  - An amount in parentheses after the federal income tax description is the federal taxable wages, e.g. `Federal Income Tax (965.70) 120.00` (Q20).
+  - A lone bracketed amount is copied without brackets and marked `in_brackets` (DL-037).
   - The schema has **no** `pretax` field, so the model can't apply a category rule.
 
 ### Step 4: Checks
@@ -210,6 +211,7 @@ Each check adds **flags** to the stub or to a deduction. Checks never change the
 | **Net reconciliation** | gross − taxes − deductions ≈ net, within a few cents. | A row is missing, extra (often an employer row) or misread. |
 | **Social Security wage gap** | Implied wages = Social Security tax ÷ 6.2%. Compare them with gross. Repeat with Medicare at 1.45%. | If the implied wages are clearly **below** gross, about that much was deducted before Social Security/Medicare tax. Usually that's health, dental, vision, HSA or FSA ("Section 125" benefits). |
 | **Federal taxable wages** | If printed, compare with gross − deductions classified pre-tax. | If they don't match, a classification is probably wrong. |
+| **Brackets** | Any line the model marked `in_brackets`. | Its meaning is unknown (Q25), so the **whole stub** goes to review (DL-037). |
 
 **Social Security gap example (stub_0010):**
 - Gross is $1,836.22, so with nothing pre-tax, Social Security would be $113.85.
@@ -220,7 +222,9 @@ Each check adds **flags** to the stub or to a deduction. Checks never change the
 - It can't reveal a 401k or pension, because those lower federal income tax but **not** Social Security tax.
 - Social Security stops above a yearly wage cap.
 
-So by default this check is only a **review flag**, not proof (see `tax_math_as_evidence`).
+So this check is only a **flag**, never proof (DL-018).
+
+**What flags do:** by default they only inform (`checks.send_to_review: false`, DL-022). Set to `true`, the federal-wages and Social Security checks move the weakly decided rows (R9/R10) to `needs_review`. The brackets check always sends the stub to review.
 
 ### Step 5: Classify each deduction (rule engine)
 Each deduction row goes through the rules **in order**, and the **first rule that matches wins**. Each result has three parts:
@@ -245,32 +249,44 @@ flowchart TD
     R6 -- no --> R7{"R7: EE code?"}
     R7 -- "yes (per ee_means)" --> SET1["pretax / not_pretax / needs_review"]
     R7 -- no --> R8{"R8: EMP code?"}
-    R8 -- "yes (per emp_means)" --> SET2["excluded / pretax / needs_review"]
+    R8 -- "yes (per emp_means)" --> SET2["employee: skip to R9<br/>employer: excluded<br/>pretax / needs_review"]
     R8 -- no --> R9{"R9: Common benefit name only?<br/>401k, medical, dental, vision, HSA, FSA"}
     R9 -- "yes (per bare_benefit_names)" --> SET3["pretax / not_pretax / needs_review"]
     R9 -- no --> R10["R10: nothing matched<br/>→ unclear_default"]
 ```
 
-**Rule order:**
+**Rule order (DL-015):**
 - **Agreed rules (R1–R5)** are applied first.
-- **Disputed rules (R6–R10)** follow the settings in section 7.
+- **Disputed rules (R6–R10)** follow the settings in section 7, now set from the business answers (DL-021): with no explicit marker, a row is post-tax.
 - **Explicit post-tax** (R3) comes before **explicit pre-tax** (R4). That way "POST EE" or "Roth 401k" can never be caught by a pre-tax rule.
+- Keywords are matched as whole words, case-insensitive, so `pre tax` matches "Pre-Tax" but `er` doesn't match "Water". Every keyword list is a setting (section 8.2).
 
-Flags from step 4 can move a decision to `needs_review`, for example when federal taxable wages don't match the classifications.
+Flags from step 4 move a decision to `needs_review` only when `checks.send_to_review` is `true` (default `false`, DL-022).
 
-### Step 6: Calculate AGI (the `agi.py` formula)
-```
-one_time = sum of bonus and overtime earnings
-pretax   = sum of deductions classified "pretax"
-AGI      = (gross − one_time − pretax) × periods_per_year + one_time
-```
-- **Periods per year** come from the printed pay frequency. If it isn't printed, use the same fallback as `agi.py`. That fallback still has to be checked when porting the code.
-- **Employer rows** (`excluded`) are never subtracted.
-- **Federal taxable wages** aren't used in the formula. They're only checked in step 4, so our AGI stays comparable with the answer keys.
+### Step 6: Calculate AGI
+The `agi.py` formula, extended with the business rules (DL-024, DL-026, DL-027, DL-030). In this order:
+
+1. **$0.00 gross or federal taxable wages** → invalid proof of income; no AGI, status `invalid`.
+2. **Printed annual amount** is used when the pay frequency can't be found or no pay figure is printed.
+3. **Pay frequency:** printed, otherwise from the period dates (e.g. 13–16 days → biweekly), otherwise `agi.default_frequency`; if none, no AGI and the stub goes to review.
+4. **Printed federal taxable wages** (this period) are used when available; they already exclude pre-tax deductions:
+   ```
+   AGI = (federal_taxable_wages − one_time) × periods_per_year + one_time
+   ```
+   If they're **above** gross, they're most likely the year-to-date column: ignored, with a warning.
+5. **Otherwise from gross:**
+   ```
+   one_time = bonus and overtime earnings (+ commission when there's other pay)
+   pretax   = deductions classified "pretax"
+   AGI      = (gross − one_time − pretax) × periods_per_year + one_time
+   ```
+- **Employer rows and taxes** (`excluded`) are never subtracted.
+- Money is `Decimal` throughout and rounded once, at the end, to the cent (half up), as in `agi.py`.
 - **`needs_review` deductions are reported as a range:**
   - `agi` treats them as not pre-tax (higher AGI);
   - `agi_if_review_pretax` subtracts them (lower AGI);
   - the stub is marked `needs_review`.
+- **Stub status (DL-040):** `invalid` ($0.00); otherwise `needs_review` for any review flag, any `needs_review` row or no AGI; otherwise `ok`.
 
 ### Step 7: Evaluate (POC harness only, not part of the component)
 The harness runs the component over the 82 stubs, once per model and settings combination.
@@ -290,9 +306,10 @@ Compare our extracted evidence with the key:
 
 | Field | How it's compared |
 |---|---|
-| Gross, net, pay frequency, period dates | Exact match (money within $0.01) |
+| Gross, net, period dates, pay date | Exact match (money within $0.01) |
 | Deduction rows | Paired **by amount**, as the comparison run's scorer does. Reported: matched, missing (in key, not ours), extra (ours, not in key) |
-| Bonus / overtime | Exact match; they drive the one-time part of AGI |
+| Key rows that are taxes | The keys list taxes among their deductions; these pair by amount with our **tax** lines (`tax_line`), after the deductions are paired |
+| One-time total (bonus, overtime, ...) | Our `one_time_total` vs the key's, within $0.01; it drives the one-time part of AGI |
 
 - Deduction **type names** aren't compared. The keys use normalised names (`health_insurance`); we keep the stub's exact wording.
 - `total_deductions` in the keys is known to be inconsistent, so it's reported but not used as pass/fail.
@@ -311,7 +328,7 @@ For each deduction paired in 7b:
 
 | Bucket | Meaning | Action |
 |---|---|---|
-| **Known key error** | Stub/deduction is on the confirmed-wrong list (`disputed_stubs`). | None; reported separately. |
+| **Known key error** | Stub is on the confirmed-wrong list (`disputed_stubs` in the harness config). | None; reported separately. |
 | **Open question** | Decided by a disputed rule (R6–R10). | Expected until the rules are agreed. Shows how much each open question matters. |
 | **Agreed rule disagrees** | Decided by R1–R5 (e.g. a clear "Pre-Tax" heading). | **Investigate.** Either our extraction/rule has a bug or the key is wrong. Check the PDF and record the outcome. |
 | **Extraction problem** | Row missing, extra or wrong amount (from 7b). | Fix extraction first; classification can't be judged. |
@@ -322,9 +339,11 @@ For each deduction paired in 7b:
 - every disagreement in the **Agreed rule disagrees** bucket has been checked and turned out to be a key error.
 
 #### 7d. End-to-end AGI
-- Compare our final AGI with the key's AGI per stub, in dollars.
-- Count stubs within $1 and list the largest gaps.
+- Compare our final AGI with the key's AGI per stub, **exact to the cent** (DL-041); the size of every difference is reported.
 - Each gap can be traced back through 7b and 7c to the row that caused it.
+- Until the corrected keys arrive, expect gaps where the business rules differ from `agi.py` (e.g. printed federal taxable wages).
+
+**How it runs:** `uv run python -m evaluation download | run | score` (section 8.5). Each model × stub result is saved as JSON; a failed stub is recorded with its error and the run continues. The report is `stubs.csv`, `rows.csv` and `summary.md`.
 
 #### Other references
 
@@ -361,35 +380,42 @@ For each deduction paired in 7b:
 | Row | Rule | Decision |
 |---|---|---|
 | Pension ER | R1 (employer) | excluded |
-| Medical, Dental, 401k | R9 (benefit name only) | depends on `bare_benefit_names` |
+| Medical, Dental, 401k | R9 (benefit name only) | `not_pretax` with the default `bare_benefit_names` (business answer B2) |
 
 **AGI:**
-- `bare_benefit_names = needs_review`: **AGI = $45,760** ($1,760 × 26). If the review items turn out pre-tax, AGI = $41,407.60.
-- The answer key says $45,760. The models said "pre-tax" and got $41,407.60, which is **$4,352.40** lower.
+- With the defaults: **AGI = $45,760** ($1,760 × 26, biweekly from the period dates). This matches the answer key; tested end to end on the real PDF.
+- The old models said "pre-tax" and got $41,407.60, which is **$4,352.40** lower. With `bare_benefit_names: needs_review`, that figure appears as `agi_if_review_pretax`.
 
 ### stub_0002 (advs_paystubs): asterisk with a footnote
 - "Health −87.00 \*", footnote "\* Excluded from federal taxable wages".
 - The stub prints "federal taxable wages $965.70" = $1,052.70 − $87.
 
-**Classification:** R6 matches **if** `asterisk_scope = any`, so Health is pre-tax. The federal-taxable-wages check agrees ($1,052.70 − $87 = $965.70). If the setting is `uniform_only`, Health falls through to R9.
+**Classification:** R6 matches with the default `asterisk_scope: any`, so Health is pre-tax. The federal-taxable-wages check agrees ($1,052.70 − $87 = $965.70). With `uniform_only`, Health falls through to R9.
 
-**AGI:** assuming no bonus or overtime, ($1,052.70 − $87) × 26 = **$25,108.20**. The answer key labels Health pre-tax.
+**AGI:** the stub prints federal taxable wages, so AGI comes from them (DL-024): $965.70 × 26 = **$25,108.20**, whichever way Health is classified. The answer key labels Health pre-tax and gets the same figure.
 
 ---
 
-## 7. Settings (decided by the open questions)
+## 7. Settings for the disputed rules
 
-| Setting | Options | Proposed POC default | Open question |
+The defaults follow the business answers of 2026-11-13 (DL-021): **no explicit pre-tax marker means post-tax, with no manual review.** The other options stay available for comparison runs.
+
+| Setting | Options | Default | Decided by |
 |---|---|---|---|
-| `bare_benefit_names` | `pretax` / `not_pretax` / `needs_review` | `needs_review` | Is "401k $70.40" with no marker pre-tax? |
-| `ee_means` | `pretax` / `not_pretax` / `needs_review` | `needs_review` | The business team says EE means pre-tax (stub07). On stub_0010 "EE/SPOUSE" looks like a coverage tier. |
-| `emp_means` | `employer` (excluded) / `pretax` / `needs_review` | `needs_review` | Employer or employee? |
-| `asterisk_scope` | `any` / `uniform_only` | `any` | Does the asterisk rule apply only to uniform reimbursements? |
-| `tax_math_as_evidence` | `flag_only` / `decide` | `flag_only` | Can a Social Security wage gap alone make a deduction pre-tax? |
-| `unclear_default` | `not_pretax` / `needs_review` | `needs_review` | No indicator at all, e.g. "Hospital Indemnity $6.76". |
-| `disputed_stubs` | list of stub IDs | stub07, stub_0010 | Keys known to be wrong; reported separately. |
+| `rules.bare_benefit_names` (R9) | `pretax` / `not_pretax` / `needs_review` | `not_pretax` | Business answer B2: "401k $70.40" with no marker is post-tax |
+| `rules.ee_means` (R7) | `pretax` / `not_pretax` / `needs_review` | `not_pretax` | B4: EE is not a pre-tax marker |
+| `rules.emp_means` (R8) | `employee` / `employer` / `pretax` / `needs_review` | `employee` | B3: EMP is the employee's own contribution, so later rules decide |
+| `rules.asterisk_scope` (R6) | `any` / `uniform_only` | `any` | B5: an asterisk + "excluded from taxable wages" footnote makes any row pre-tax |
+| `rules.unclear_default` (R10) | `not_pretax` / `needs_review` | `not_pretax` | B7: no indicator means post-tax |
+| `checks.send_to_review` | `true` / `false` | `false` | DL-022 (to be confirmed, Q17) |
+| `agi.commission_with_other_pay` | `one_time` / `regular` | `one_time` | Source document, DL-026 |
+| `agi.one_time_with_federal_wages` | `once` / `annualise` | `once` | DL-027 |
 
-Running with every setting at its `needs_review` value shows exactly how many decisions depend on the open questions.
+**Not settings any more:**
+- `tax_math_as_evidence`: a Social Security gap is only ever a flag; it never decides pre-tax on its own (Q12).
+- `disputed_stubs`: keys known to be wrong are an evaluation matter, listed in the harness config (`evaluation/config.yaml`).
+
+Running with every rule setting at its `needs_review` value shows how many decisions depend on the disputed rules.
 
 ---
 
@@ -399,83 +425,79 @@ Running with every setting at its `needs_review` value shows exactly how many de
 One main entry point, plus each step as its own function so a caller can use only the part it needs:
 
 ```python
-from paystub_agi import PaystubAnalyzer, AnalyzerConfig
+from pathlib import Path
+from paystub_agi import AnalyzerConfig, FileEvidenceStore, PaystubAnalyzer
 
-analyzer = PaystubAnalyzer(
-    config=AnalyzerConfig.from_yaml("paystub.yaml"),
-    genai=my_genai_service,  # any idp-genai service; the caller picks provider and model
-    reader=None,             # optional: a custom idp-ocr reader
-    store=None,              # optional: saves OCR reads; None = nothing is saved
+analyzer = PaystubAnalyzer.create(
+    AnalyzerConfig.from_yaml(Path("config/default.yaml")),
+    genai=my_genai_service,             # any idp-genai service; the caller picks the provider
+    model="<model id>",                 # never hard-coded in the component
+    readers={"textract": textract},     # optional: paid readers named in reading.strategy
+    downloader=s3_downloader,           # optional: only needed for s3:// sources
+    store=FileEvidenceStore(Path("data/ocr_reads")),  # optional: saves OCR reads
 )
 
-result = analyzer.analyze("stub_0006.pdf")  # or bytes
-result.agi                       # 45760.00
-result.agi_if_review_pretax      # 41407.60
-result.status                    # "ok" | "needs_review"
-result.deductions[0].decision    # "needs_review"
-result.deductions[0].rule_id     # "R9"
-result.deductions[0].evidence    # quoted text that triggered the rule
-result.flags                     # e.g. ["ss_wage_gap", "net_mismatch"]
+result = analyzer.analyze("docs/paystubs/stub_0006.pdf")  # or "s3://bucket/key"
+result.status                    # StubStatus.OK | NEEDS_REVIEW | INVALID
+result.agi.agi                   # Decimal("45760.00")
+result.agi.agi_if_review_pretax  # lower when some rows are needs_review
+result.decisions[0].decision     # Decision.NOT_PRETAX
+result.decisions[0].rule_id      # RuleId.R9
+result.decisions[0].evidence     # 'label "Medical"'
+result.flags                     # what the checks found
+result.checks_not_run            # checks that couldn't run on this stub
 ```
+
+A reading or model failure raises `ReadingError` / `ExtractionError`; no result is returned (DL-040). The result hides document values from its `repr`, so logging it can't leak them.
 
 | Function | Needs network? | Use on its own when... |
 |---|---|---|
-| `analyzer.read(source)` → `Document` | Yes (Textract for scans) | You only want OCR + tables. |
-| `analyzer.extract(document)` → `PaystubEvidence` | Yes (model) | You want the evidence records. |
-| `run_checks(evidence, document, config)` → flags | No | You already have evidence from elsewhere. |
-| `classify(evidence, flags, config)` → decisions | No | You only need the pre-tax decisions, e.g. another pipeline already extracts deductions. |
-| `compute_agi(evidence, decisions, config)` → `AgiResult` | No | You only need the AGI arithmetic. |
+| `IdpOcrStubReader(config.reading, ...).read(source, images=...)` → `ReadStub` | Yes (Textract for scans) | You only want OCR text + tables. |
+| `EvidenceExtractor(genai, model=..., config=config.extraction).extract(stub)` → `PaystubEvidence` | Yes (model) | You want the evidence records. |
+| `classify(evidence, config.rules)` → decisions | No | You only need the pre-tax decisions, e.g. another pipeline already extracts deductions. |
+| `run_checks(evidence, decisions, config.checks, text)` → `CheckReport`; `apply_review(decisions, report)` | No | You already have evidence from elsewhere. |
+| `compute_agi(evidence, decisions, config.agi)` → `AgiResult` | No | You only need the AGI arithmetic. |
 
 The last three are **pure functions**: same input, same output, no AWS, no model. That makes them easy to unit-test and reuse.
 
 ### 8.2 Configuration
-One YAML file, loaded into a validated Pydantic `AnalyzerConfig`. Every value has a default, so an empty file works.
+One YAML file, loaded into a validated Pydantic `AnalyzerConfig` (`yaml.safe_load`; unknown keys and bad values are rejected with `ConfigError`). Every value has a default, so an empty file works. **[config/default.yaml](../config/default.yaml) documents every default**; a test keeps it equal to the built-in values.
+
+| Section | Holds |
+|---|---|
+| `reading` | reader order (`strategy`), page-image limits |
+| `extraction` | `send_images`, `temperature`, `max_output_tokens` |
+| `rules` | the settings in section 7 + one keyword list per rule (R1–R9) |
+| `agi` | one-time earnings, commission, federal-wages formula, periods per year, default frequency |
+| `checks` | `send_to_review`, tolerances, Social Security/Medicare rates and labels, cafeteria-plan names |
 
 ```yaml
-reading:
-  features: [words, tables]
-  force_ocr: false            # true = always use Textract
-
-extraction:
-  send_images: auto           # auto = only if the model accepts images | never
-  max_images: 3
-
-checks:
-  money_tolerance: 0.02
-  social_security_rate: 0.062
-  medicare_rate: 0.0145
-
-rules:                        # section 7
-  bare_benefit_names: needs_review
-  ee_means: needs_review
-  emp_means: needs_review
-  asterisk_scope: any
-  tax_math_as_evidence: flag_only
-  unclear_default: needs_review
-  keywords:                   # editable without code changes
-    pretax_markers: ["pre-tax", "pretax", "pre tax", "PRE", "PT", "PRTX", "before tax", "tax deferred", "tax sheltered"]
-    posttax_markers: ["post-tax", "posttax", "POST", "after-tax", "roth"]
-    posttax_categories: ["garnish", "union dues", "charit"]
-    employer_markers: ["ER", "ERR", "employer", "company paid"]
-    employer_sections: ["benefits", "employer contributions", "payroll benefits"]
-    benefit_names: ["401k", "403b", "457", "medical", "health", "dental", "vision", "hsa", "fsa"]
-
+rules:
+  bare_benefit_names: not_pretax     # R9
+  keywords:
+    pretax_markers: [pre tax, pretax, pre, pt, prtx, before tax, tax deferred, ...]   # R4
+    benefit_names: [401k, 403b, "457", medical, health, dental, vision, hsa, fsa, ...] # R9
 agi:
   one_time_earnings: [bonus, overtime]
-  periods_per_year: {weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12}
+  periods_per_year: {weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12, quarterly: 4, annual: 1, one_time: 1}
 ```
 
 **What can change without touching code:** every setting, every keyword list, tolerances and the one-time earning types.
 
 **What is fixed in code:** the rule order (R1–R10) and the AGI formula. These are the parts we want to keep reviewed and tested.
 
+**What never goes in this file:** model IDs, regions, buckets, paths and credentials (AGENTS.md 10.4). The caller supplies those.
+
 ### 8.3 What the caller plugs in (dependency injection)
 
 | Plug-in | Required? | Default | Why it's injected |
 |---|---|---|---|
-| `genai`: an `idp-genai` service | **Yes** | — | The caller decides provider, model, credentials and region. |
-| `reader`: an `idp-ocr` reader | No | `idp-ocr` automatic reader (digital first, Textract for scans) | E.g. to use a different Textract client or region. |
+| `genai` + `model`: an `idp-genai` service and model ID | **Yes** | — | The caller decides provider, model, credentials, region and retries. |
+| `readers`: paid `idp-ocr` readers by name, e.g. `{"textract": ...}` | Only for names in `reading.strategy` | `pdfplumber` is built in | E.g. a Textract reader with its own region or staging bucket. |
+| `downloader`: an `idp-ocr` `S3Downloader` | Only for `s3://` sources | none | The caller's S3 client and credentials. |
 | `store`: an evidence store | No | none (in memory only) | See 8.4. |
+
+Callers with their own parts can also build `PaystubAnalyzer(config, reader=..., extractor=..., store=...)` directly.
 
 ### 8.4 In memory vs saved OCR reads
 **By default nothing is saved.** `analyze()` works entirely in memory and returns a `PaystubResult`, like any normal function.
@@ -512,24 +534,32 @@ The **evaluation harness** uses `FileEvidenceStore` with a git-ignored folder (t
 idp-paystub-usecase/
 ├── pyproject.toml              # dependencies from GitHub branches (8.6)
 ├── src/paystub_agi/            # the reusable component
-│   ├── __init__.py             # public API: PaystubAnalyzer, AnalyzerConfig, classify, compute_agi, ...
+│   ├── __init__.py             # public API: PaystubAnalyzer, AnalyzerConfig, PaystubResult, StubStatus, FileEvidenceStore, errors
 │   ├── config.py               # AnalyzerConfig (Pydantic) + YAML loading + defaults
-│   ├── models.py               # PaystubEvidence, Decision, AgiResult, PaystubResult
+│   ├── errors.py               # ConfigError, ReadingError, ExtractionError, StoreError, ...
+│   ├── models.py               # PaystubEvidence, decisions, CheckReport, AgiResult, PaystubResult
+│   ├── matching.py             # whole-word keyword matching (rules, AGI, checks)
 │   ├── reading.py              # idp-ocr call: words + tables, optional page images
 │   ├── extraction.py           # evidence-only schema + prompt + idp-genai call
-│   ├── checks.py               # grounding, net reconciliation, Social Security gap, federal taxable wages
+│   ├── checks.py               # grounding, net, Social Security gap, federal taxable wages, brackets
 │   ├── rules.py                # rule engine R1–R10
-│   ├── agi.py                  # AGI formula (agi.py reference)
+│   ├── agi.py                  # AGI formula (agi.py reference + business rules)
 │   ├── store.py                # EvidenceStore interface + FileEvidenceStore (OCR reads only)
 │   └── analyzer.py             # PaystubAnalyzer: wires the steps together
 ├── config/default.yaml         # documented defaults
 ├── evaluation/                 # POC harness, NOT part of the package
-│   ├── run.py                  # download stubs, run the component per model/settings
-│   ├── baseline.py             # adapter: old model outputs → classify()
-│   └── score.py                # 7a–7d vs answer keys, hand-verified set, agi.py
-├── tests/                      # unit tests for checks, rules and AGI (no network)
+│   ├── config.example.yaml     # harness settings template (real config.yaml is git-ignored)
+│   ├── component.yaml          # component settings for the evaluation (text only)
+│   ├── settings.py, clients.py # harness settings; AWS clients built from them
+│   ├── answer_keys.py          # answer keys + the 7a replay
+│   ├── download.py, run.py     # download stubs once; run each model × stub
+│   ├── score.py, report.py     # 7b–7d vs answer keys; CSVs + summary
+│   └── cli.py, __main__.py     # python -m evaluation download | run | score
+├── tests/                      # unit (no network), acceptance (local data), integration (opt-in, AWS)
 └── docs/
 ```
+
+The baseline adapter (old model outputs through `classify()`) is not built yet (DL-041).
 
 The component (`src/paystub_agi`) never imports anything from `evaluation/`. That one-way dependency is what keeps it reusable: the evaluation can be thrown away without touching the component.
 
@@ -574,8 +604,10 @@ idp-genai = { git = "https://github.com/maximus-idp/idp-genai", branch = "featur
 | Architecture (this file) | `docs/architecture.md` |
 | Running notes and history | `summary.md` |
 | Local sample PDFs (not committed) | `docs/paystubs/` |
-| Saved OCR reads (evaluation only) | a git-ignored folder under `data/`, one `<fingerprint>.json` per read (proposed) |
-| Evaluation results | `evaluation/results/<run_id>/` (proposed) |
+| Evaluation stub PDFs (not committed) | `data/paystubs/<folder>/` (downloaded once) |
+| Answer keys (not committed) | `data/answer_keys/<folder>/<stub>.json` |
+| Saved OCR reads (evaluation only) | `data/ocr_reads/`, one `<fingerprint>.json` per read |
+| Evaluation results | `data/results/<run_id>/<model>/<folder>/<stub>.json`, report in `data/results/<run_id>/report/` |
 | AGI reference | `agi.py` in the repo `idp-paystub-model-comparison/paystub-extractor` |
 
 **Environment:**

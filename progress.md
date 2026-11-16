@@ -233,8 +233,8 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 |---|---|---|---|
 | Q9 | `idp-genai` holds `rpds-py` at `2026.6.3` for licence compliance, but that hold isn't inherited, so our lock has `2026.9.1`. Copy the libraries' version holds into our `pyproject.toml`? | Licence-compliance parity with the libraries | Yes, copy them |
 | Q10 | `summary.md` holds people's names and synthetic employee names. Commit it, or keep it local (git-ignored)? | Data handling | Keep it local |
-| Q11 | `agi.py` also supports quarterly/annual/one-time frequencies and infers frequency from period dates. OK to update architecture sections 5 and 8.2 to match? | Architecture changes need approval | Yes; `agi.py` is the reference |
-| Q12 | I left the `tax_math_as_evidence` setting out of the config for now. Its "decide" option needs a design: which deductions explain a Social Security gap? (stub_0010 needed a 4-row combination.) `disputed_stubs` belongs in the evaluation config, not the component. OK to update architecture section 7 to match? | Architecture changes need approval | Yes; the gap stays a review flag (F6) |
+| Q11 | `agi.py` also supports quarterly/annual/one-time frequencies and infers frequency from period dates. OK to update architecture sections 5 and 8.2 to match? | Architecture changes need approval | **Done 2026-11-16** (user asked for the docs update): Step 6 and 8.2 now match the code. |
+| Q12 | I left the `tax_math_as_evidence` setting out of the config for now. Its "decide" option needs a design: which deductions explain a Social Security gap? (stub_0010 needed a 4-row combination.) `disputed_stubs` belongs in the evaluation config, not the component. OK to update architecture section 7 to match? | Architecture changes need approval | **Done 2026-11-16:** section 7 rewritten; the gap stays a flag; `disputed_stubs` is in the harness config. |
 | Q13 | One-time pay matches earning labels by whole word ("Overtime 1.5x", "Holiday Bonus" count). Abbreviations like "OT" don't. Add `ot` to the default list? | AGI on stubs that print "OT" | Don't add yet; check the stubs first |
 | Q14 | More default keywords suggested by a public paystub-codes guide (not official; see decisions log 2026-11-11). See the list under the table. | Several of these stop a wrong pre-tax decision | Add group A now; groups B and C after review |
 
@@ -359,14 +359,14 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 3 | Labels have no maximum length. | Low | Break-it phase. | Open |
 | 4 | Lines have no page number, so multi-page stubs rely on order only. | Low | Revisit if hand-verification needs it. | Accepted |
 | 5 | The architecture draft had hours and rate on earnings; dropped because nothing uses them (YAGNI). | Low | — | Accepted |
-| 6 | The JSON schema Pydantic generates for `Money` is "number or string". The extraction schema should say "number". | Medium | F8. | Open |
+| 6 | The JSON schema Pydantic generates for `Money` is "number or string". The extraction schema should say "number". | Medium | F8: `Money` now has a "number or null" schema (tested). | Fixed |
 
 ### F3 review (2026-11-11)
 | # | Finding | Severity | Fix | Status |
 |---|---|---|---|---|
 | 1 | Some default keywords are short and could match unrelated words: `pre` ("Pre-Paid Legal" would read as pre-tax), `pt` (could mean part-time), `er`, `post`. They're whole-word matches and editable in config. | Medium | Break-it tests; business question B11. | Open |
 | 2 | `periods_per_year` is a `dict` inside a frozen model, so a caller could mutate it in place. Pydantic copies the default per instance, so instances don't share it. | Low | — | Accepted |
-| 3 | `tax_math_as_evidence` and `disputed_stubs` from architecture section 7 aren't in the component config. | Medium | Q12. | Open |
+| 3 | `tax_math_as_evidence` and `disputed_stubs` from architecture section 7 aren't in the component config. | Medium | Q12: the gap stays a flag; `disputed_stubs` moved to the harness config; architecture updated. | Fixed |
 | 4 | Every setting value has an "accepts" test and each setting has a "rejects unknown" test. The YAML security test (a `!!python/object` tag) passes. | — | — | OK |
 
 ### F4 review (2026-11-11)
@@ -458,7 +458,7 @@ Moved to [decisionlog.md](decisionlog.md) (2026-11-11). The table below is kept 
 | 6 | The status rule (DL-040) is the only decision in `analyzer.py`; everything else is wiring. | Low (SRP) | Kept: a few lines, one place, fully tested. | Accepted |
 | 7 | F5 #8 / F6 #7: nothing in the analyzer logs. | — | — | OK |
 | 8 | F4 #5: the "exceeds regular pay" warning is still only checked for `agi`, not `agi_if_review_pretax`. | Low | Revisit in F11 if the review range is reported. | Open |
-| 9 | `docs/architecture.md` 8.1 shows an older API sketch (`genai=`, `reader=None`, `analyzer.read/extract`). | Low (docs) | Needs the user's OK to update. | Open |
+| 9 | `docs/architecture.md` 8.1 shows an older API sketch (`genai=`, `reader=None`, `analyzer.read/extract`). | Low (docs) | Updated 2026-11-16 with the real API, plug-ins and package layout. | Fixed |
 
 <!-- Template:
 ### F<n> review (date)
@@ -514,3 +514,5 @@ _Phase not started. Items queued from reviews:_
   - User: the model must be called on every run (answers vary). Removed the answer cache and fingerprint; the store keeps only the OCR read (DL-039). 551 tests pass, 100% coverage.
   - Completed F10 (DL-040), tests first: `PaystubAnalyzer` + `create`, stub status, saved reads with re-rendered images, model called every run, public API. 582 tests pass, 100% coverage. stub_0006 end to end (free reader, canned answer): `ok`, $45,760, no flags.
   - F11 slices 1–5 (DL-041, DL-042), tests first: harness settings, clients, download, run, scoring, report, CLI. 82 stubs downloaded. Pilot on Opus × 5 stubs after three fixes: all `ok`, 0 row disagreements, AGI exact 2/5 (gaps traced to one-time pay, Q27/Q28). 708 tests pass.
+- **2026-11-16:**
+  - At the user's request, brought `docs/architecture.md` in line with the code and decisions: key decisions D4/D6, S3 path, Steps 1–6 (input, reader order, schema and prompt rules, brackets check, flags policy, AGI order, stub status), 7b/7d scoring, worked examples, section 7 (current defaults and who decided them), 8.1–8.3 (real API and plug-ins), 8.5 layout, and where data lives. Closes Q11, Q12, F2 #6, F3 #3, F10 #9.
