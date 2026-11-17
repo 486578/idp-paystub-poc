@@ -53,6 +53,7 @@
 | DL-045 | 2026-11-17 | Rules / AGI / Prompt | `PRE` is a code-only marker; mixed pre-tax headings don't decide; "double time" is one-time pay; prompt skips total and net-pay distribution rows | Active |
 | DL-046 | 2026-11-17 | Evaluation | `score` also writes `overview.csv` and "why" tables in `summary.md`: one plain-words cause per AGI mismatch | Active |
 | DL-047 | 2026-11-17 | AGI | "award" is one-time pay (closes Q27) | Active |
+| DL-048 | 2026-11-17 | Evaluation | Local answer keys may be corrected when the stub clearly contradicts them; each correction is logged (first: advs stub_0009) | Active |
 
 ---
 
@@ -468,4 +469,20 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 ## DL-047: "Award" is one-time pay (closes Q27)
 - **Decision:** "award" is added to `agi.one_time_earnings`, so a line such as "Award / Other" is counted once, not multiplied by the pay periods.
 - **Why:** the keys treat "Award / Other" as a bonus (generated_scanned/stub01 +$2,500, stub03 +$3,125 before this).
+- **Approved by:** user (2026-11-17).
+
+## DL-048: Correcting local answer keys
+- **Decision:** when a stub clearly contradicts its answer key, the local key copies (`data/answer_keys/` and `data/subset/answer_keys/`, git-ignored) are corrected to the printed figures. The S3 originals stay unchanged. Every correction is listed here with before/after values.
+- **Corrections:**
+
+  | Stub | Field | Was | Now | Evidence on the stub |
+  |---|---|---|---|---|
+  | advs_paystubs/stub_0009 | `amounts.gross` | 5744.49 | 5741.25 | "Gross Earnings 5,741.25" (current); every other earnings line is 0.00 this period |
+  | | `amounts.total_deductions` | 1663.16 | 1659.92 | The key's own deduction rows add up to 1,659.92; 5,741.25 − 1,659.92 = printed net 4,081.33 |
+  | | `calculated.annual_gross` | 137867.76 | 137790.00 | 5,741.25 × 24 |
+  | | `calculated.agi` | 134497.68 | 134419.92 | (5,741.25 − 140.42) × 24 |
+
+- **Why:** the key had $3.24 in gross and in total deductions that isn't printed in the current column, so it marked a correct reading as wrong.
+- **Alternative:** list the stub in `disputed_stubs` only (rejected: that doesn't change the AGI comparison).
+- **To do:** tell the key owners so the S3 originals can be fixed; a fresh copy of the keys from S3 would undo this.
 - **Approved by:** user (2026-11-17).
