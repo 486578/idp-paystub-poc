@@ -76,6 +76,7 @@ class StubScore(_Score):
     key_agi: Decimal | None
     agi_match: bool = False
     agi_difference: Decimal | None = None
+    agi_method: str | None = None
 
 
 def _money(name: str, ours: Decimal | None, key: Decimal | None) -> FieldScore:
@@ -248,4 +249,5 @@ def score_outcome(
         key_agi=key_agi,
         agi_match=difference == 0,
         agi_difference=difference,
+        agi_method=None if result.agi.method is None else result.agi.method.value,
     )

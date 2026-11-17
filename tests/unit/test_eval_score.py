@@ -8,6 +8,7 @@ from evaluation.answer_keys import AnswerKey
 from evaluation.run import StubOutcome
 from evaluation.score import score_outcome
 from paystub_agi.models import (
+    AgiMethod,
     AgiResult,
     Decision,
     DeductionDecision,
@@ -71,6 +72,7 @@ def _outcome(
     *,
     agi: str | None = "45760.00",
     one_time: str = "0",
+    method: AgiMethod | None = None,
     **evidence: Any,
 ) -> StubOutcome:
     values: dict[str, Any] = {
@@ -96,7 +98,7 @@ def _outcome(
             pay_frequency=None,
             frequency_source=None,
             periods_per_year=26,
-            method=None,
+            method=method,
             one_time_total=Decimal(one_time),
             pretax_total=Decimal(0),
             review_total=Decimal(0),
@@ -354,6 +356,12 @@ def test_eval_score_no_agi_is_not_a_match() -> None:
 
 def test_eval_score_status_comes_from_the_result() -> None:
     assert _score(_outcome([]), _key([])).status == "ok"
+
+
+def test_eval_score_records_our_agi_method() -> None:
+    outcome = _outcome([], method=AgiMethod.FEDERAL_TAXABLE_WAGES)
+
+    assert _score(outcome, _key([])).agi_method == "federal_taxable_wages"
 
 
 # --- failed stubs --------------------------------------------------------------------

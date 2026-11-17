@@ -51,6 +51,7 @@
 | DL-043 | 2026-11-17 | Evaluation | `s3` settings optional; only `download` needs them, so own stub sets run without S3 | Active |
 | DL-044 | 2026-11-17 | Evaluation | Component settings go in a `component` section of each harness config; `evaluation/component.yaml` removed | Active |
 | DL-045 | 2026-11-17 | Rules / AGI / Prompt | `PRE` is a code-only marker; mixed pre-tax headings don't decide; "double time" is one-time pay; prompt skips total and net-pay distribution rows | Active |
+| DL-046 | 2026-11-17 | Evaluation | `score` also writes `overview.csv` and "why" tables in `summary.md`: one plain-words cause per AGI mismatch | Active |
 
 ---
 
@@ -455,4 +456,10 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
   4. **Prompt:** don't list total/subtotal rows or net-pay distribution rows (direct deposit, checking). Why: 20 such extra rows in the run.
 - **Effect (replay of the saved Opus evidence, no model calls):** exact AGI 18 → 21 of 30. scanned/stub05 still differs: with the heading ignored, its 401(k) and Medical rows have no marker and become post-tax under R9 (key: pre-tax).
 - **Alternatives:** keep `pre` for labels but not before a hyphen (too clever); split the mixed heading into its parts (guessing).
+- **Approved by:** user (2026-11-17).
+
+## DL-046: A simple report with plain-words causes
+- **Decision:** `score` also writes `overview.csv` (model, stub, result, our AGI, key AGI, difference, why) and adds "AGI mismatches" and "Failed" tables to `summary.md`. The "why" lists, in order: pre-tax disagreements (with rule), rows sent to review, missing pre-tax rows, extra rows counted pre-tax, field differences that change AGI (gross, one-time pay, period dates), and "ours starts from the printed federal taxable wages". Results: `match`, `mismatch`, `failed`, `both_empty`. The score now records our AGI method for this. `stubs.csv` and `rows.csv` are unchanged.
+- **Why:** the detailed CSVs were hard to read in one go.
+- **Note:** `both_empty` is still counted as not exact in the totals; changing that wasn't approved.
 - **Approved by:** user (2026-11-17).

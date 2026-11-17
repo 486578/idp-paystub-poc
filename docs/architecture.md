@@ -347,7 +347,7 @@ For each deduction paired in 7b:
 - Each gap can be traced back through 7b and 7c to the row that caused it.
 - Until the corrected keys arrive, expect gaps where the business rules differ from `agi.py` (e.g. printed federal taxable wages).
 
-**How it runs:** `uv run python -m evaluation download | run | score` (section 8.5). Each model × stub result is saved as JSON; a failed stub is recorded with its error and the run continues. The report is `stubs.csv`, `rows.csv` and `summary.md`.
+**How it runs:** `uv run python -m evaluation download | run | score` (section 8.5). Each model × stub result is saved as JSON; a failed stub is recorded with its error and the run continues. The report is `overview.csv` (one line per stub: result, AGIs, difference and a plain-words "why"), `summary.md` (totals plus the same "why" table for mismatches and failures), and the detailed `stubs.csv` and `rows.csv` (DL-046).
 
 #### Other references
 
