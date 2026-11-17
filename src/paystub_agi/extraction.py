@@ -36,10 +36,13 @@ Otherwise in_brackets is false.
 - Write dates as YYYY-MM-DD.
 - Don't list total or subtotal rows (e.g. "Total Deductions", "Total Earnings") \
 or net-pay distribution rows (e.g. direct deposit to a checking or savings \
-account) as earnings, taxes or deductions.
+account) as earnings, taxes or deductions. Totals may still be used for gross and \
+net.
 
 Fields:
-- gross, net: this period's gross pay and net pay.
+- gross, net: this period's gross pay and net pay. If no line is called "gross", \
+use this period's total earnings, e.g. a "Total Earnings" or "Check Totals" \
+figure.
 - pay_frequency: the pay frequency exactly as printed, e.g. "Biweekly"; null if \
 not printed. Don't work it out from the dates.
 - period_start, period_end, pay_date: the pay period dates and the pay date.

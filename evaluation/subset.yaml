@@ -1,6 +1,3 @@
-# Harness settings for the 30-stub subset (first 10 of each folder, copied to data/subset).
-# generated_scanned/stub06 swapped for stub11; advs stub_0007 is expected to fail (2-page scan).
-# No s3 section: the subset is already local (DL-043).
 aws:
   region: us-east-1
   retries:
@@ -26,5 +23,3 @@ models:
   - {name: gemma, model_id: google.gemma-3-27b-it, temperature: 0}
   - {name: gpt, model_id: openai.gpt-oss-120b-1:0, temperature: 0}
 
-disputed_stubs:
-  - advs_paystubs/stub_0010

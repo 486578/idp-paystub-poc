@@ -200,7 +200,7 @@ The caller passes a local file path or an `s3://bucket/key` URI (DL-031). An S3 
   - This period only; a value printed only as year-to-date counts as not printed (DL-030).
   - An amount in parentheses after the federal income tax description is the federal taxable wages, e.g. `Federal Income Tax (965.70) 120.00` (Q20).
   - A lone bracketed amount is copied without brackets and marked `in_brackets` (DL-037).
-  - Total/subtotal rows and net-pay distribution rows (direct deposit, checking) aren't listed (DL-045).
+  - Total/subtotal rows and net-pay distribution rows (direct deposit, checking) aren't listed (DL-045), but totals may be used for gross and net; with no line called "gross", gross is this period's total earnings (DL-049).
   - The schema has **no** `pretax` field, so the model can't apply a category rule.
 
 ### Step 4: Checks

@@ -198,6 +198,8 @@ def test_extraction_schema_has_no_pretax_field() -> None:
         "in_brackets",  # DL-037
         "total deductions",  # DL-045: no total rows
         "direct deposit",  # DL-045: no net-pay distribution rows
+        'if no line is called "gross"',  # DL-049: gross from a total
+        "totals may still be used for gross and net",  # DL-049
     ],
 )
 def test_extraction_prompt_contains(phrase: str) -> None:

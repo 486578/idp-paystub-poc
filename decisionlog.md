@@ -54,6 +54,7 @@
 | DL-046 | 2026-11-17 | Evaluation | `score` also writes `overview.csv` and "why" tables in `summary.md`: one plain-words cause per AGI mismatch | Active |
 | DL-047 | 2026-11-17 | AGI | "award" is one-time pay (closes Q27) | Active |
 | DL-048 | 2026-11-17 | Evaluation | Local answer keys may be corrected when the stub clearly contradicts them; each correction is logged (first: advs stub_0009) | Active |
+| DL-049 | 2026-11-17 | Prompt | With no line called "gross", the model uses this period's total earnings; the "no total rows" rule only applies to the lists | Active |
 
 ---
 
@@ -485,4 +486,10 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Why:** the key had $3.24 in gross and in total deductions that isn't printed in the current column, so it marked a correct reading as wrong.
 - **Alternative:** list the stub in `disputed_stubs` only (rejected: that doesn't change the AGI comparison).
 - **To do:** tell the key owners so the S3 originals can be fixed; a fresh copy of the keys from S3 would undo this.
+- **Approved by:** user (2026-11-17).
+
+## DL-049: Gross from a total when no line is called "gross" (prompt)
+- **Decision:** the prompt now says: if no line is called "gross", use this period's total earnings (e.g. "Total Earnings" or "Check Totals"); and totals may still be used for gross and net (the DL-045 "no total rows" rule only applies to the earnings, taxes and deductions lists).
+- **Why:** in `subset-opus-2`, advs stub_0003 (a payroll register whose only gross figure is "Check Totals 2,000.00") came back with no gross, so no AGI; in the run before DL-045 it was read correctly.
+- **Alternative (not done, needs business approval):** in code, use the sum of the earnings lines when gross is missing, with a warning and a review flag.
 - **Approved by:** user (2026-11-17).
