@@ -38,7 +38,7 @@ def test_config_rule_setting_defaults_follow_business_answers() -> None:
 def test_config_agi_defaults_match_reference() -> None:
     agi = AgiConfig()
 
-    assert agi.one_time_earnings == ("bonus", "overtime", "double time")
+    assert agi.one_time_earnings == ("bonus", "overtime", "double time", "award")
     assert agi.default_frequency is None
     assert agi.periods_per_year == {
         PayFrequency.WEEKLY: 52,

@@ -198,7 +198,7 @@ def _every_frequency(value: dict[PayFrequency, int]) -> dict[PayFrequency, int]:
 class AgiConfig(_Settings):
     """AGI parameters; defaults reproduce the reference `agi.py`."""
 
-    one_time_earnings: Keywords = ("bonus", "overtime", "double time")
+    one_time_earnings: Keywords = ("bonus", "overtime", "double time", "award")
     # Source doc: commission alone is regular pay; next to other pay it goes in
     # the bonus column. "one_time" counts it once instead of annualising it.
     commission_earnings: Keywords = ("commission",)

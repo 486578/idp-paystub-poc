@@ -52,6 +52,7 @@
 | DL-044 | 2026-11-17 | Evaluation | Component settings go in a `component` section of each harness config; `evaluation/component.yaml` removed | Active |
 | DL-045 | 2026-11-17 | Rules / AGI / Prompt | `PRE` is a code-only marker; mixed pre-tax headings don't decide; "double time" is one-time pay; prompt skips total and net-pay distribution rows | Active |
 | DL-046 | 2026-11-17 | Evaluation | `score` also writes `overview.csv` and "why" tables in `summary.md`: one plain-words cause per AGI mismatch | Active |
+| DL-047 | 2026-11-17 | AGI | "award" is one-time pay (closes Q27) | Active |
 
 ---
 
@@ -462,4 +463,9 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Decision:** `score` also writes `overview.csv` (model, stub, result, our AGI, key AGI, difference, why) and adds "AGI mismatches" and "Failed" tables to `summary.md`. The "why" lists, in order: pre-tax disagreements (with rule), rows sent to review, missing pre-tax rows, extra rows counted pre-tax, field differences that change AGI (gross, one-time pay, period dates), and "ours starts from the printed federal taxable wages". Results: `match`, `mismatch`, `failed`, `both_empty`. The score now records our AGI method for this. `stubs.csv` and `rows.csv` are unchanged.
 - **Why:** the detailed CSVs were hard to read in one go.
 - **Note:** `both_empty` is still counted as not exact in the totals; changing that wasn't approved.
+- **Approved by:** user (2026-11-17).
+
+## DL-047: "Award" is one-time pay (closes Q27)
+- **Decision:** "award" is added to `agi.one_time_earnings`, so a line such as "Award / Other" is counted once, not multiplied by the pay periods.
+- **Why:** the keys treat "Award / Other" as a bonus (generated_scanned/stub01 +$2,500, stub03 +$3,125 before this).
 - **Approved by:** user (2026-11-17).

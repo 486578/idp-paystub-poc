@@ -312,6 +312,18 @@ def test_agi_double_time_is_one_time_by_default() -> None:
     assert result.agi == Decimal("49500.00")
 
 
+def test_agi_award_is_one_time_by_default() -> None:
+    evidence = _evidence(
+        gross=Decimal("1300"),
+        earnings=(_earning("Regular Pay", "1200"), _earning("Award / Other", "100")),
+    )
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.one_time_total == Decimal("100.00")
+    assert result.agi == Decimal("31300.00")
+
+
 def test_agi_one_time_earnings_come_from_config() -> None:
     evidence = _evidence(
         gross=Decimal("2000"),

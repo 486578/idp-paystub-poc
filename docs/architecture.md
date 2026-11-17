@@ -484,7 +484,7 @@ rules:
     mixed_heading_words: [other, taxes, withholding, withholdings]               # R4
     benefit_names: [401k, 403b, "457", medical, health, dental, vision, hsa, fsa, ...] # R9
 agi:
-  one_time_earnings: [bonus, overtime, double time]
+  one_time_earnings: [bonus, overtime, double time, award]
   periods_per_year: {weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12, quarterly: 4, annual: 1, one_time: 1}
 ```
 
