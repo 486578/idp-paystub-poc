@@ -16,7 +16,9 @@ paths:
   ocr_reads: data/ocr_reads
   results: data/results
 
-component_config: evaluation/component.yaml
+component:                 # component settings; anything not listed keeps config/default.yaml
+  extraction:
+    send_images: never     # text only for now
 
 textract:
   mode: sync               # sync (1-page only) | async (needs staging_bucket)

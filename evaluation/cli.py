@@ -164,7 +164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "run":
-        config = AnalyzerConfig.from_yaml(settings.component_config)
+        config = settings.component
         textract = build_textract(settings.aws, settings.textract)
         store = FileEvidenceStore(paths.ocr_reads)
 

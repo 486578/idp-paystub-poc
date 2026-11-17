@@ -13,7 +13,9 @@ paths:
   ocr_reads: data/ocr_reads          # shared with the full set, so saved Textract reads are reused
   results: data/subset/results
 
-component_config: evaluation/component.yaml
+component:                 # component settings; anything not listed keeps config/default.yaml
+  extraction:
+    send_images: never     # text only for now
 
 textract:
   mode: sync

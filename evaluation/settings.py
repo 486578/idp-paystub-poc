@@ -18,6 +18,7 @@ from pydantic import (
     model_validator,
 )
 
+from paystub_agi.config import AnalyzerConfig
 from paystub_agi.errors import ConfigError
 
 NonBlank = Annotated[str, Field(min_length=1, pattern=r"\S")]
@@ -89,7 +90,8 @@ class HarnessSettings(_Settings):
     # Only the download command uses S3; own stub sets don't need it.
     s3: S3Settings | None = None
     paths: PathSettings = PathSettings()
-    component_config: Path = Path("evaluation/component.yaml")
+    # Only what differs from config/default.yaml needs listing.
+    component: AnalyzerConfig = AnalyzerConfig()
     textract: TextractSettings = TextractSettings()
     models: Annotated[
         tuple[ModelSettings, ...], Field(min_length=1), AfterValidator(_unique_names)

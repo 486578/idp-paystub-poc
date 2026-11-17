@@ -31,7 +31,7 @@ def test_eval_settings_defaults() -> None:
     assert settings.paths.paystubs == Path("data/paystubs")
     assert settings.paths.ocr_reads == Path("data/ocr_reads")
     assert settings.paths.results == Path("data/results")
-    assert settings.component_config == Path("evaluation/component.yaml")
+    assert settings.component == AnalyzerConfig()
     assert (settings.textract.mode, settings.textract.staging_bucket) == ("sync", None)
     assert settings.models[0].provider == "converse"
     assert settings.disputed_stubs == ()
@@ -183,7 +183,24 @@ def test_eval_settings_model_temperature_must_not_be_negative() -> None:
         HarnessSettings.model_validate(_settings(models=models))
 
 
-def test_eval_component_config_is_text_only() -> None:
-    config = AnalyzerConfig.from_yaml(REPO / "evaluation" / "component.yaml")
+def test_eval_settings_component_section_overrides_only_what_it_lists() -> None:
+    component = {"extraction": {"send_images": "never"}}
 
-    assert config.extraction.send_images == "never"
+    settings = HarnessSettings.model_validate(_settings(component=component))
+
+    assert settings.component.extraction.send_images == "never"
+    assert settings.component.rules == AnalyzerConfig().rules
+
+
+def test_eval_settings_component_section_rejects_unknown_keys() -> None:
+    component = {"extraction": {"send_pictures": "never"}}
+
+    with pytest.raises(ValueError, match="send_pictures"):
+        HarnessSettings.model_validate(_settings(component=component))
+
+
+@pytest.mark.parametrize("name", ["config.example.yaml", "subset.yaml"])
+def test_eval_committed_harness_configs_are_text_only(name: str) -> None:
+    settings = HarnessSettings.from_yaml(REPO / "evaluation" / name)
+
+    assert settings.component.extraction.send_images == "never"

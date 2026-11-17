@@ -36,9 +36,6 @@ def main() -> None:
     parser.add_argument(
         "--temperature", type=float, help="omit to use the model's own default"
     )
-    parser.add_argument(
-        "--config", type=Path, default=Path("evaluation/component.yaml")
-    )
     args = parser.parse_args()
 
     aws = AwsSettings(region=args.region)
@@ -48,7 +45,7 @@ def main() -> None:
         provider=args.provider,
         schema_method=args.schema_method,
     )
-    config = AnalyzerConfig.from_yaml(args.config)
+    config = AnalyzerConfig()
     extraction = config.extraction.model_copy(update={"temperature": args.temperature})
     # Credentials come from the usual AWS chain (e.g. AWS_PROFILE).
     analyzer = PaystubAnalyzer.create(

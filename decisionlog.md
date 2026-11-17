@@ -49,6 +49,7 @@
 | DL-041 | 2026-11-15 | Evaluation | Harness setup: 4 models, text only, PDFs downloaded once, pilot first, exact AGI match, Textract sync, no baseline yet | Active |
 | DL-042 | 2026-11-15 | Evaluation | Temperature set per model in the harness (Opus 5/Sonnet 5 reject it); 2-page scans left failing under sync | Active |
 | DL-043 | 2026-11-17 | Evaluation | `s3` settings optional; only `download` needs them, so own stub sets run without S3 | Active |
+| DL-044 | 2026-11-17 | Evaluation | Component settings go in a `component` section of each harness config; `evaluation/component.yaml` removed | Active |
 
 ---
 
@@ -436,4 +437,11 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Decision:** `s3` in the harness settings may be left out. Only the `download` command needs it, and it stops with a clear `ConfigError` when it's missing. `run` and `score` work on any local folders laid out as `<group>/<stub>.pdf` + `<group>/<stub>.json`.
 - **Why:** the harness should run on the team's own stubs and answer keys, not just the 82 in S3; a placeholder bucket name was confusing.
 - **Alternative:** keep `s3` required and use a placeholder (rejected: misleading).
+- **Approved by:** user (2026-11-17).
+
+## DL-044: Component settings inside the harness config (partly supersedes DL-041)
+- **Decision:** each harness config has an optional `component` section with the component settings for that run (same keys as `config/default.yaml`; anything not listed keeps its default). The separate `evaluation/component.yaml` and the `component_config` path are removed. The demo uses the built-in defaults.
+- **Why:** one file per run is simpler; a second file only for one setting was confusing.
+- **Note:** the harness's model capabilities are text-only, so no images are sent even without `send_images: never`; the committed configs still state it.
+- **Alternative:** keep a separate file per run (rejected by the user).
 - **Approved by:** user (2026-11-17).
