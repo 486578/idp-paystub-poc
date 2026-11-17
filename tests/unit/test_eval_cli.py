@@ -9,6 +9,7 @@ from evaluation.answer_keys import AnswerKey
 from evaluation.cli import (
     component_config_for,
     load_outcomes,
+    main,
     parse_args,
     run_command,
     score_run,
@@ -128,6 +129,21 @@ def test_eval_cli_config_defaults_to_the_harness_file() -> None:
 def test_eval_cli_score_needs_a_run_id() -> None:
     with pytest.raises(SystemExit):
         parse_args(["score"])
+
+
+def test_eval_cli_download_without_s3_settings_is_a_config_error(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "aws: {region: us-east-1}\n"
+        f"paths: {{answer_keys: '{tmp_path.as_posix()}'}}\n"
+        "models: [{name: opus, model_id: us.anthropic.claude-opus-5}]\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="download needs s3"):
+        main(["download", "--config", str(config)])
 
 
 def test_eval_cli_all_models_when_none_named() -> None:

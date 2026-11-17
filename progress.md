@@ -262,7 +262,7 @@ Source: `idp-paystub-model-comparison/paystub-extractor/src/agi.py`. These are *
 | Q25 | What does a **lone** bracketed amount mean, e.g. `Medical (85.00)`: money taken out, or taxable wages (source document)? The two-amount tax line `Federal Income Tax (965.70) 120.00` is taxable wages. | Brackets also commonly mean "deducted"; nobody on the project knows | **Open with the business.** Until then such stubs go to review (DL-037). |
 | Q26 | Disputed keys (reported separately in 7c): `advs_paystubs/stub_0010` is clear, but **`stub07` exists in two folders** (`generated_complicated` and `generated_scanned`). Which one is disputed? | Wrong bucket for the other stub | Ask the user |
 | Q27 | Should "award" count as one-time pay (like bonus)? The keys treat "Award / Other" as a bonus. | +$2,500 and +$3,125 AGI on two pilot stubs | Add `award` to `agi.one_time_earnings` |
-| Q28 | "Extra Hours" is overtime in one key (`generated_complicated/stub01`) but regular pay in others (`generated_scanned/stub01`, `stub03`). Which is right? | Keys look inconsistent; affects one-time pay | Ask the business; don't add a keyword yet |
+| Q28 | "Extra Hours" is overtime in one key (`generated_complicated/stub01`) but regular pay in others (`generated_scanned/stub01`, `stub03`). Which is right? | Keys look inconsistent; affects one-time pay | **2026-11-17, provisional:** business thinks overtime and is checking with the RO team. Not applied yet. Note: on scanned stub03 the Extra Hours rate ($26.50) is below the regular rate ($28.31). |
 
 ### Before we start coding (original list, kept for history)
 | ID | Question | Why it matters | Proposed answer |
@@ -517,3 +517,6 @@ _Phase not started. Items queued from reviews:_
 - **2026-11-16:**
   - At the user's request, brought `docs/architecture.md` in line with the code and decisions: key decisions D4/D6, S3 path, Steps 1–6 (input, reader order, schema and prompt rules, brackets check, flags policy, AGI order, stub status), 7b/7d scoring, worked examples, section 7 (current defaults and who decided them), 8.1–8.3 (real API and plug-ins), 8.5 layout, and where data lives. Closes Q11, Q12, F2 #6, F3 #3, F10 #9.
   - Added `evaluation/demo.py` at the user's request: a stakeholder demo that takes local PDF + answer-key pairs, a model ID, region and model options, and prints status, AGI vs key and each decision. It only wires existing tested parts, so it has no unit test; it prints document values, so use it only on synthetic stubs.
+- **2026-11-17:**
+  - Q28: provisional business answer (overtime), waiting for the RO team; not applied.
+  - DL-043, tests first: `s3` harness settings are optional; `download` without them is a `ConfigError`. Own stub sets now run with just `paths` pointed at local folders. 710 tests pass.

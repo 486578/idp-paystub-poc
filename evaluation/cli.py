@@ -148,6 +148,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     session = boto3.Session(region_name=settings.aws.region)
 
     if args.command == "download":
+        if settings.s3 is None:
+            raise ConfigError("download needs s3 settings in the harness config")
         s3 = session.client("s3", config=boto_config(settings.aws.retries))
         report = download_stubs(
             s3, settings.s3.bucket, settings.s3.stubs_prefix, refs, paths.paystubs

@@ -48,6 +48,7 @@
 | DL-040 | 2026-11-15 | Analyzer | Stub status rules, errors raised, one analyzer per model, result contents, path/S3 input | Active |
 | DL-041 | 2026-11-15 | Evaluation | Harness setup: 4 models, text only, PDFs downloaded once, pilot first, exact AGI match, Textract sync, no baseline yet | Active |
 | DL-042 | 2026-11-15 | Evaluation | Temperature set per model in the harness (Opus 5/Sonnet 5 reject it); 2-page scans left failing under sync | Active |
+| DL-043 | 2026-11-17 | Evaluation | `s3` settings optional; only `download` needs them, so own stub sets run without S3 | Active |
 
 ---
 
@@ -430,3 +431,9 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Also decided:** the 2 two-page scanned stubs (`generated_scanned/stub06`, `stub17`) stay failing under Textract `sync` for now (no staging bucket).
 - **Alternative:** `temperature: null` for every model (less repeatable for the models that support 0).
 - **Approved by:** user (2026-11-15).
+
+## DL-043: S3 settings are optional in the harness
+- **Decision:** `s3` in the harness settings may be left out. Only the `download` command needs it, and it stops with a clear `ConfigError` when it's missing. `run` and `score` work on any local folders laid out as `<group>/<stub>.pdf` + `<group>/<stub>.json`.
+- **Why:** the harness should run on the team's own stubs and answer keys, not just the 82 in S3; a placeholder bucket name was confusing.
+- **Alternative:** keep `s3` required and use a placeholder (rejected: misleading).
+- **Approved by:** user (2026-11-17).

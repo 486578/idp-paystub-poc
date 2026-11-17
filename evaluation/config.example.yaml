@@ -6,7 +6,7 @@ aws:
     mode: adaptive         # standard | adaptive | legacy
     max_attempts: 5
 
-s3:
+s3:                        # only needed for the download command; omit for your own stub set
   bucket: example-bucket   # the bucket holding datasets/paystubs/
   stubs_prefix: datasets/paystubs/
 

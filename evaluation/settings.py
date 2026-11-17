@@ -86,7 +86,8 @@ def _unique_names(models: tuple[ModelSettings, ...]) -> tuple[ModelSettings, ...
 
 class HarnessSettings(_Settings):
     aws: AwsSettings
-    s3: S3Settings
+    # Only the download command uses S3; own stub sets don't need it.
+    s3: S3Settings | None = None
     paths: PathSettings = PathSettings()
     component_config: Path = Path("evaluation/component.yaml")
     textract: TextractSettings = TextractSettings()

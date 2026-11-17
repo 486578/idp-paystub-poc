@@ -25,6 +25,7 @@ def test_eval_settings_defaults() -> None:
 
     assert settings.aws.retries.mode == "adaptive"
     assert settings.aws.retries.max_attempts == 5
+    assert settings.s3 is not None
     assert settings.s3.stubs_prefix == "datasets/paystubs/"
     assert settings.paths.answer_keys == Path("data/answer_keys")
     assert settings.paths.paystubs == Path("data/paystubs")
@@ -34,6 +35,13 @@ def test_eval_settings_defaults() -> None:
     assert (settings.textract.mode, settings.textract.staging_bucket) == ("sync", None)
     assert settings.models[0].provider == "converse"
     assert settings.disputed_stubs == ()
+
+
+def test_eval_settings_s3_is_optional() -> None:
+    values = _settings()
+    del values["s3"]
+
+    assert HarnessSettings.model_validate(values).s3 is None
 
 
 def test_eval_settings_async_needs_a_staging_bucket() -> None:
@@ -123,7 +131,7 @@ def test_eval_settings_from_invalid_values_raises_config_error(tmp_path: Path) -
     path = tmp_path / "config.yaml"
     path.write_text("aws: {region: us-east-1}\n", encoding="utf-8")
 
-    with pytest.raises(ConfigError, match="s3"):
+    with pytest.raises(ConfigError, match="models"):
         HarnessSettings.from_yaml(path)
 
 
