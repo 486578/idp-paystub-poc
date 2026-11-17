@@ -56,7 +56,6 @@ rules:
     pretax_markers:                                                        # R4
       - pre tax
       - pretax
-      - pre
       - pt
       - prtx
       - before tax
@@ -65,6 +64,9 @@ rules:
       - tax exempt
       - non taxed
       - no tax
+    pretax_codes: [pre]                                                    # R4, code columns only (DL-045)
+    # R4 ignores a pre-tax heading that also has one of these words (DL-045).
+    mixed_heading_words: [other, taxes, withholding, withholdings]
     posttax_categories: [garnish, garnishment, union dues, charity, charitable, child support]  # R5
     pretax_footnote_phrases:                                               # R6
       - pre tax
@@ -104,7 +106,7 @@ rules:
 
 agi:
   # AGI = (gross - one_time - pretax) x periods_per_year + one_time  (reference agi.py)
-  one_time_earnings: [bonus, overtime]
+  one_time_earnings: [bonus, overtime, double time]
   # Source doc: commission alone is regular pay; with other pay it's in the bonus column.
   commission_earnings: [commission]
   commission_with_other_pay: one_time   # one_time (counted once) | regular (annualised)

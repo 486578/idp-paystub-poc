@@ -50,6 +50,7 @@
 | DL-042 | 2026-11-15 | Evaluation | Temperature set per model in the harness (Opus 5/Sonnet 5 reject it); 2-page scans left failing under sync | Active |
 | DL-043 | 2026-11-17 | Evaluation | `s3` settings optional; only `download` needs them, so own stub sets run without S3 | Active |
 | DL-044 | 2026-11-17 | Evaluation | Component settings go in a `component` section of each harness config; `evaluation/component.yaml` removed | Active |
+| DL-045 | 2026-11-17 | Rules / AGI / Prompt | `PRE` is a code-only marker; mixed pre-tax headings don't decide; "double time" is one-time pay; prompt skips total and net-pay distribution rows | Active |
 
 ---
 
@@ -444,4 +445,14 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Why:** one file per run is simpler; a second file only for one setting was confusing.
 - **Note:** the harness's model capabilities are text-only, so no images are sent even without `send_images: never`; the committed configs still state it.
 - **Alternative:** keep a separate file per run (rejected by the user).
+- **Approved by:** user (2026-11-17).
+
+## DL-045: Fixes from the first subset run (Opus, 30 stubs)
+- **Decisions:**
+  1. **`PRE` only as a code.** It moved from `pretax_markers` to a new `pretax_codes` list that R4 checks in code columns only. Why: in a label, whole-word matching split "Pre-Pocketed Cash Tip Offset" into "pre" + "pocketed" and made it pre-tax (complicated/stub03, −$3,900). Cost: a label like "Medical PRE" (no code column) no longer counts. `pt` stays a marker for now.
+  2. **Mixed headings don't decide.** R4 ignores a pre-tax heading that also contains a word from `mixed_heading_words` (other, taxes, withholding, withholdings), e.g. "Pre-Tax, Taxes, and Other Deductions". Rows under it need their own marker. Why: the heading covers pre-tax *and* other rows (scanned/stub05: "Benefits / Other" was made pre-tax). R3 (post-tax headings) is unchanged.
+  3. **"Double time" is one-time pay** (added to `agi.one_time_earnings`). Why: it's overtime at twice the rate; the keys treat it as overtime (complicated/stub07, stub08).
+  4. **Prompt:** don't list total/subtotal rows or net-pay distribution rows (direct deposit, checking). Why: 20 such extra rows in the run.
+- **Effect (replay of the saved Opus evidence, no model calls):** exact AGI 18 → 21 of 30. scanned/stub05 still differs: with the heading ignored, its 401(k) and Medical rows have no marker and become post-tax under R9 (key: pre-tax).
+- **Alternatives:** keep `pre` for labels but not before a hyphen (too clever); split the mixed heading into its parts (guessing).
 - **Approved by:** user (2026-11-17).

@@ -80,6 +80,13 @@ def _everywhere(line: DeductionLine) -> Iterator[tuple[str, str]]:
     yield from _heading(line)
 
 
+def _heading_unless_mixed(
+    line: DeductionLine, mixed_words: Sequence[str]
+) -> Iterator[tuple[str, str]]:
+    if not contains_any(line.section_heading, mixed_words):
+        yield from _heading(line)
+
+
 def _find(sources: Iterable[tuple[str, str]], keywords: Sequence[str]) -> str | None:
     for evidence, text in sources:
         if contains_any(text, keywords) is not None:
@@ -140,8 +147,12 @@ class ExplicitPreTaxRule:
 
     def apply(self, line: DeductionLine, context: RuleContext) -> Verdict | None:
         keywords = context.config.keywords
-        evidence = _find(_everywhere(line), keywords.pretax_markers) or _column(
-            line, keywords.pretax_markers, keywords.column_yes_values
+        heading = _heading_unless_mixed(line, keywords.mixed_heading_words)
+        evidence = (
+            _find(_row(line), keywords.pretax_markers)
+            or _find(_codes(line), keywords.pretax_codes)
+            or _find(heading, keywords.pretax_markers)
+            or _column(line, keywords.pretax_markers, keywords.column_yes_values)
         )
         return _verdict(Decision.PRETAX, evidence)
 

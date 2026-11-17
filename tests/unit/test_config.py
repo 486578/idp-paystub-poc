@@ -38,7 +38,7 @@ def test_config_rule_setting_defaults_follow_business_answers() -> None:
 def test_config_agi_defaults_match_reference() -> None:
     agi = AgiConfig()
 
-    assert agi.one_time_earnings == ("bonus", "overtime")
+    assert agi.one_time_earnings == ("bonus", "overtime", "double time")
     assert agi.default_frequency is None
     assert agi.periods_per_year == {
         PayFrequency.WEEKLY: 52,
@@ -57,6 +57,22 @@ def test_config_commission_defaults_follow_user_decision() -> None:
     assert agi.commission_earnings == ("commission",)
     assert agi.commission_with_other_pay == "one_time"
     assert agi.one_time_with_federal_wages == "once"
+
+
+def test_config_pre_is_a_code_marker_only() -> None:
+    keywords = RulesConfig().keywords
+
+    assert "pre" not in keywords.pretax_markers
+    assert keywords.pretax_codes == ("pre",)
+
+
+def test_config_mixed_heading_words_default() -> None:
+    assert RulesConfig().keywords.mixed_heading_words == (
+        "other",
+        "taxes",
+        "withholding",
+        "withholdings",
+    )
 
 
 @pytest.mark.parametrize("value", ["once", "annualise"])

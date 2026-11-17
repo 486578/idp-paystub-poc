@@ -300,6 +300,18 @@ def test_agi_one_time_needs_whole_word_match() -> None:
     assert compute_agi(evidence, (), AgiConfig()).one_time_total == Decimal("0.00")
 
 
+def test_agi_double_time_is_one_time_by_default() -> None:
+    evidence = _evidence(
+        gross=Decimal("2000"),
+        earnings=(_earning("Regular", "1900"), _earning("Double Time", "100")),
+    )
+
+    result = compute_agi(evidence, (), AgiConfig())
+
+    assert result.one_time_total == Decimal("100.00")
+    assert result.agi == Decimal("49500.00")
+
+
 def test_agi_one_time_earnings_come_from_config() -> None:
     evidence = _evidence(
         gross=Decimal("2000"),

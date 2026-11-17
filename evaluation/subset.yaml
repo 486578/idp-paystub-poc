@@ -22,7 +22,7 @@ textract:
 
 models:
   - {name: opus, model_id: us.anthropic.claude-opus-5, temperature: null, schema_method: prompt}
-  - {name: sonnet, model_id: us.anthropic.claude-sonnet-5, temperature: null}
+  - {name: sonnet, model_id: us.anthropic.claude-sonnet-5, temperature: null , schema_method: prompt}
   - {name: gemma, model_id: google.gemma-3-27b-it, temperature: 0}
   - {name: gpt, model_id: openai.gpt-oss-120b-1:0, temperature: 0}
 

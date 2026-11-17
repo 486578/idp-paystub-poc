@@ -196,6 +196,8 @@ def test_extraction_schema_has_no_pretax_field() -> None:
         "yyyy-mm-dd",
         "do not decide",
         "in_brackets",  # DL-037
+        "total deductions",  # DL-045: no total rows
+        "direct deposit",  # DL-045: no net-pay distribution rows
     ],
 )
 def test_extraction_prompt_contains(phrase: str) -> None:

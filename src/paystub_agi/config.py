@@ -115,7 +115,6 @@ class RuleKeywords(_Settings):
     pretax_markers: Keywords = (
         "pre tax",
         "pretax",
-        "pre",
         "pt",
         "prtx",
         "before tax",
@@ -125,6 +124,10 @@ class RuleKeywords(_Settings):
         "non taxed",
         "no tax",
     )
+    # Only in a code column: in a label, "pre" also matches "Pre-Pocketed" (DL-045).
+    pretax_codes: Keywords = ("pre",)
+    # A pre-tax heading with these words also covers other deductions (DL-045).
+    mixed_heading_words: Keywords = ("other", "taxes", "withholding", "withholdings")
     posttax_categories: Keywords = (
         "garnish",
         "garnishment",
@@ -195,7 +198,7 @@ def _every_frequency(value: dict[PayFrequency, int]) -> dict[PayFrequency, int]:
 class AgiConfig(_Settings):
     """AGI parameters; defaults reproduce the reference `agi.py`."""
 
-    one_time_earnings: Keywords = ("bonus", "overtime")
+    one_time_earnings: Keywords = ("bonus", "overtime", "double time")
     # Source doc: commission alone is regular pay; next to other pay it goes in
     # the bonus column. "one_time" counts it once instead of annualising it.
     commission_earnings: Keywords = ("commission",)

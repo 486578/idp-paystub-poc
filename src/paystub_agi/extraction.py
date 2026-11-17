@@ -34,6 +34,9 @@ a minus sign if one is printed.
 number without the brackets (85.00) and set in_brackets to true for that line. \
 Otherwise in_brackets is false.
 - Write dates as YYYY-MM-DD.
+- Don't list total or subtotal rows (e.g. "Total Deductions", "Total Earnings") \
+or net-pay distribution rows (e.g. direct deposit to a checking or savings \
+account) as earnings, taxes or deductions.
 
 Fields:
 - gross, net: this period's gross pay and net pay.

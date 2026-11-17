@@ -9,7 +9,7 @@ They are checked in order, top to bottom. **The first rule that matches decides*
 | **R1** | The **employer** paid it (marked "ER", "Employer"…, or in an employer section). | "Medical ER" | `excluded` |
 | **R2** | It's a **tax** (federal, state, Social Security, Medicare…). | "Fed Withholding" | `excluded` |
 | **R3** | The stub **says post-tax** ("Post", "After Tax", "Roth", or a Pre-Tax column showing "N"). | "Roth 401k" | `not_pretax` |
-| **R4** | The stub **says pre-tax** ("Pre-Tax", "Before Tax"…, a "Pre-Tax" heading, or a Pre-Tax column showing "Y"). | "401k Pre-Tax" | `pretax` |
+| **R4** | The stub **says pre-tax** ("Pre-Tax", "Before Tax"…, a code "PRE", a "Pre-Tax" heading, or a Pre-Tax column showing "Y"). A heading that also mentions other deductions, like "Pre-Tax, Taxes, and Other Deductions", doesn't count. | "401k Pre-Tax" | `pretax` |
 | **R5** | It's a type of deduction that is **always post-tax** (garnishment, union dues, charity, child support). | "Child Support" | `not_pretax` |
 | **R6** | It has a **star (\*)** and the matching **footnote says pre-tax**. | "Dental\*" + "\*Pre-tax" | `pretax` |
 | **R7** | It has the code **"EE"**. | "Dental EE" | setting `ee_means` (now `not_pretax`) |

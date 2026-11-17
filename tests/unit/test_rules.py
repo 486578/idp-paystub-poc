@@ -205,16 +205,50 @@ def test_rules_r4_pretax_heading_makes_row_pretax() -> None:
     )
 
 
-def test_rules_r4_pre_in_label_is_pretax() -> None:
-    _assert(
-        _decide(_line("Medical PRE")), Decision.PRETAX, RuleId.R4, 'label "Medical PRE"'
-    )
-
-
 def test_rules_r4_pre_code_is_pretax() -> None:
+    line = _line("401k", codes=[(None, "PRE")])
+
+    _assert(_decide(line), Decision.PRETAX, RuleId.R4, 'code "PRE"')
+
+
+def test_rules_r4_pre_in_label_does_not_fire() -> None:
+    assert _decide(_line("Pre-Pocketed Cash Tip Offset")).rule_id is RuleId.R10
+
+
+def test_rules_r4_pretax_codes_come_from_config() -> None:
+    line = _line("401k", codes=[(None, "PRE")])
+
+    assert _decide(line, keywords={"pretax_codes": ["xyz"]}).rule_id is RuleId.R9
+
+
+def test_rules_r4_pt_code_is_pretax() -> None:
     line = _line("Dental", codes=[("Code", "PT")])
 
     _assert(_decide(line), Decision.PRETAX, RuleId.R4, 'code "Code: PT"')
+
+
+MIXED = "Pre-Tax, Taxes, and Other Deductions"
+
+
+def test_rules_r4_mixed_heading_does_not_decide() -> None:
+    assert _decide(_line("Benefits / Other", heading=MIXED)).rule_id is RuleId.R10
+
+
+def test_rules_r4_row_marker_still_counts_under_mixed_heading() -> None:
+    line = _line("401k", heading=MIXED, codes=[(None, "PRE")])
+
+    _assert(_decide(line), Decision.PRETAX, RuleId.R4, 'code "PRE"')
+
+
+def test_rules_r4_mixed_heading_words_come_from_config() -> None:
+    line = _line("Benefits / Other", heading=MIXED)
+
+    _assert(
+        _decide(line, keywords={"mixed_heading_words": []}),
+        Decision.PRETAX,
+        RuleId.R4,
+        f'section heading "{MIXED}"',
+    )
 
 
 @pytest.mark.parametrize("value", ["Y", "Yes", "X"])
@@ -354,7 +388,7 @@ def test_rules_r7_ee_code_fires() -> None:
 
 
 def test_rules_r7_loses_to_r4() -> None:
-    assert _decide(_line("Medical PRE EE")).rule_id is RuleId.R4
+    assert _decide(_line("Medical EE", codes=[(None, "PRE")])).rule_id is RuleId.R4
 
 
 # --- R8: EMP -------------------------------------------------------------------------------
@@ -391,7 +425,7 @@ def test_rules_r8_emp_as_employee_lets_later_rules_decide() -> None:
 
 
 def test_rules_r8_emp_as_employee_keeps_explicit_pretax() -> None:
-    decided = _decide(_line("EMP 401k PRE"), emp_means="employee")
+    decided = _decide(_line("EMP 401k", codes=[(None, "PRE")]), emp_means="employee")
 
     assert (decided.decision, decided.rule_id) == (Decision.PRETAX, RuleId.R4)
 
@@ -453,7 +487,7 @@ def test_rules_r10_unclear_follows_setting(setting: str, expected: Decision) -> 
 
 
 def test_rules_classify_keeps_row_order_and_count() -> None:
-    lines = (_line("Pension ER"), _line("Roth 401k"), _line("Medical PRE"))
+    lines = (_line("Pension ER"), _line("Roth 401k"), _line("Medical Pre-Tax"))
 
     decided = classify(_evidence(*lines), RulesConfig())
 

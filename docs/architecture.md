@@ -200,6 +200,7 @@ The caller passes a local file path or an `s3://bucket/key` URI (DL-031). An S3 
   - This period only; a value printed only as year-to-date counts as not printed (DL-030).
   - An amount in parentheses after the federal income tax description is the federal taxable wages, e.g. `Federal Income Tax (965.70) 120.00` (Q20).
   - A lone bracketed amount is copied without brackets and marked `in_brackets` (DL-037).
+  - Total/subtotal rows and net-pay distribution rows (direct deposit, checking) aren't listed (DL-045).
   - The schema has **no** `pretax` field, so the model can't apply a category rule.
 
 ### Step 4: Checks
@@ -240,7 +241,7 @@ flowchart TD
     R2 -- yes --> X2["excluded<br/>(taxes are handled separately)"]
     R2 -- no --> R3{"R3: Explicit post-tax marker?<br/>Post-tax, POST, After-tax, Roth"}
     R3 -- yes --> NP["not_pretax"]
-    R3 -- no --> R4{"R4: Explicit pre-tax marker<br/>on the row, its code column<br/>or its section heading?<br/>Pre-tax, PRE, PT, PRTX,<br/>Before Tax, Tax Deferred, ..."}
+    R3 -- no --> R4{"R4: Explicit pre-tax marker<br/>on the row, its code column<br/>or its section heading?<br/>Pre-tax, PT, PRTX, Before Tax,<br/>Tax Deferred, ...; PRE as a code only"}
     R4 -- yes --> P["pretax"]
     R4 -- no --> R5{"R5: Always post-tax category?<br/>garnishment, union dues, charity"}
     R5 -- yes --> NP
@@ -260,6 +261,9 @@ flowchart TD
 - **Disputed rules (R6–R10)** follow the settings in section 7, now set from the business answers (DL-021): with no explicit marker, a row is post-tax.
 - **Explicit post-tax** (R3) comes before **explicit pre-tax** (R4). That way "POST EE" or "Roth 401k" can never be caught by a pre-tax rule.
 - Keywords are matched as whole words, case-insensitive, so `pre tax` matches "Pre-Tax" but `er` doesn't match "Water". Every keyword list is a setting (section 8.2).
+- **R4 details (DL-045):**
+  - `PRE` counts only as a code (`pretax_codes`), because in a label it also matches "Pre-Pocketed".
+  - A heading that says pre-tax but also names other kinds of deductions (`mixed_heading_words`: other, taxes, withholding), e.g. "Pre-Tax, Taxes, and Other Deductions", doesn't decide a row; the row's own label or codes must.
 
 Flags from step 4 move a decision to `needs_review` only when `checks.send_to_review` is `true` (default `false`, DL-022).
 
@@ -475,10 +479,12 @@ One YAML file, loaded into a validated Pydantic `AnalyzerConfig` (`yaml.safe_loa
 rules:
   bare_benefit_names: not_pretax     # R9
   keywords:
-    pretax_markers: [pre tax, pretax, pre, pt, prtx, before tax, tax deferred, ...]   # R4
+    pretax_markers: [pre tax, pretax, pt, prtx, before tax, tax deferred, ...]   # R4
+    pretax_codes: [pre]                                                          # R4, codes only
+    mixed_heading_words: [other, taxes, withholding, withholdings]               # R4
     benefit_names: [401k, 403b, "457", medical, health, dental, vision, hsa, fsa, ...] # R9
 agi:
-  one_time_earnings: [bonus, overtime]
+  one_time_earnings: [bonus, overtime, double time]
   periods_per_year: {weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12, quarterly: 4, annual: 1, one_time: 1}
 ```
 
