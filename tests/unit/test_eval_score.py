@@ -354,6 +354,24 @@ def test_eval_score_no_agi_is_not_a_match() -> None:
     assert (score.agi_match, score.our_agi, score.agi_difference) == (False, None, None)
 
 
+def test_eval_score_both_without_agi_is_a_match() -> None:
+    key = _key([])
+    calculated = key.calculated.model_copy(update={"agi": None})
+    key = key.model_copy(update={"calculated": calculated})
+
+    score = _score(_outcome([], agi=None), key)
+
+    assert (score.agi_match, score.agi_difference) == (True, None)
+
+
+def test_eval_score_key_without_agi_but_ours_with_one_is_not_a_match() -> None:
+    key = _key([])
+    calculated = key.calculated.model_copy(update={"agi": None})
+    key = key.model_copy(update={"calculated": calculated})
+
+    assert _score(_outcome([]), key).agi_match is False
+
+
 def test_eval_score_status_comes_from_the_result() -> None:
     assert _score(_outcome([]), _key([])).status == "ok"
 

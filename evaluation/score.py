@@ -247,7 +247,7 @@ def score_outcome(
         ),
         our_agi=our_agi,
         key_agi=key_agi,
-        agi_match=difference == 0,
+        agi_match=difference == 0 or (our_agi is None and key_agi is None),
         agi_difference=difference,
         agi_method=None if result.agi.method is None else result.agi.method.value,
     )

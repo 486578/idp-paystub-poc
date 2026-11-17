@@ -55,6 +55,7 @@
 | DL-047 | 2026-11-17 | AGI | "award" is one-time pay (closes Q27) | Active |
 | DL-048 | 2026-11-17 | Evaluation | Local answer keys may be corrected when the stub clearly contradicts them; each correction is logged (first: advs stub_0009) | Active |
 | DL-049 | 2026-11-17 | Prompt | With no line called "gross", the model uses this period's total earnings; the "no total rows" rule only applies to the lists | Active |
+| DL-050 | 2026-11-17 | Evaluation | When neither we nor the key have an AGI, it counts as an AGI match (result `both_empty`) | Active |
 
 ---
 
@@ -492,4 +493,9 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Decision:** the prompt now says: if no line is called "gross", use this period's total earnings (e.g. "Total Earnings" or "Check Totals"); and totals may still be used for gross and net (the DL-045 "no total rows" rule only applies to the earnings, taxes and deductions lists).
 - **Why:** in `subset-opus-2`, advs stub_0003 (a payroll register whose only gross figure is "Check Totals 2,000.00") came back with no gross, so no AGI; in the run before DL-045 it was read correctly.
 - **Alternative (not done, needs business approval):** in code, use the sum of the earnings lines when gross is missing, with a warning and a review flag.
+- **Approved by:** user (2026-11-17).
+
+## DL-050: No AGI on both sides counts as a match
+- **Decision:** when our result and the answer key both have no AGI (e.g. no pay frequency printed), the scorer counts it as an AGI match. The overview still labels it `both_empty`, and it no longer appears in the "AGI mismatches" table. Our AGI missing while the key has one (or the reverse) is still a mismatch. Supersedes the DL-046 note.
+- **Why:** both sides correctly refuse to produce a number from missing information (complicated/stub05).
 - **Approved by:** user (2026-11-17).

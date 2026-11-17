@@ -127,10 +127,10 @@ def explain(score: StubScore) -> tuple[str, str]:
     if score.status == "failed":
         code = f" ({score.error_code})" if score.error_code else ""
         return "failed", f"{score.error}{code}"
-    if score.agi_match:
-        return "match", ""
     if score.our_agi is None and score.key_agi is None:
         return "both_empty", "Neither we nor the key have an AGI"
+    if score.agi_match:
+        return "match", ""
     reasons = [r for r in map(_row_reason, score.rows) if r]
     reasons += [
         f"{_AGI_FIELDS[f.name]} differs: ours {f.ours or 'none'}, key {f.key or 'none'}"
@@ -230,7 +230,7 @@ def write_report(scores: Sequence[StubScore], folder: Path) -> None:
             f"- Field mismatches: {_counts(m.field_mismatches)}",
         ]
         mine = [r for r in overview if r["model"] == m.model]
-        off = [r for r in mine if r["result"] in ("mismatch", "both_empty")]
+        off = [r for r in mine if r["result"] == "mismatch"]
         if off:
             lines += [
                 "",

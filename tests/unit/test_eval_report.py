@@ -143,9 +143,19 @@ def test_eval_report_explain_failed_gives_the_error() -> None:
 
 
 def test_eval_report_explain_both_without_agi() -> None:
-    score = _off(our_agi=None, key_agi=None, agi_difference=None)
+    score = _off(our_agi=None, key_agi=None, agi_difference=None, agi_match=True)
 
     assert explain(score) == ("both_empty", "Neither we nor the key have an AGI")
+
+
+def test_eval_report_summary_does_not_list_both_empty_as_a_mismatch(
+    tmp_path: Path,
+) -> None:
+    both = _off(our_agi=None, key_agi=None, agi_difference=None, agi_match=True)
+
+    write_report([both], tmp_path)
+
+    assert "### AGI mismatches" not in (tmp_path / "summary.md").read_text("utf-8")
 
 
 def test_eval_report_explain_pretax_disagreement() -> None:
