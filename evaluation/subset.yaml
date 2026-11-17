@@ -1,0 +1,27 @@
+# Harness settings for the 30-stub subset (first 10 of each folder, copied to data/subset).
+# No s3 section: the subset is already local (DL-043).
+aws:
+  region: us-east-1
+  retries:
+    mode: adaptive
+    max_attempts: 5
+
+paths:
+  answer_keys: data/subset/answer_keys
+  paystubs: data/subset/paystubs
+  ocr_reads: data/ocr_reads          # shared with the full set, so saved Textract reads are reused
+  results: data/subset/results
+
+component_config: evaluation/component.yaml
+
+textract:
+  mode: sync
+
+models:
+  - {name: opus, model_id: us.anthropic.claude-opus-5, temperature: null, schema_method: prompt}
+  - {name: sonnet, model_id: us.anthropic.claude-sonnet-5, temperature: null}
+  - {name: gemma, model_id: google.gemma-3-27b-it, temperature: 0}
+  - {name: gpt, model_id: openai.gpt-oss-120b-1:0, temperature: 0}
+
+disputed_stubs:
+  - advs_paystubs/stub_0010
