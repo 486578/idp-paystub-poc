@@ -520,4 +520,4 @@ _Phase not started. Items queued from reviews:_
 - **2026-11-17:**
   - Q28: provisional business answer (overtime), waiting for the RO team; not applied.
   - DL-043, tests first: `s3` harness settings are optional; `download` without them is a `ConfigError`. Own stub sets now run with just `paths` pointed at local folders. 710 tests pass.
-  - Subset for the next run: first 10 stubs (by name) of each folder, copied with their keys to `data/subset/` (30 stubs); harness config `evaluation/subset.yaml` (shares `data/ocr_reads`). Not run yet. `generated_scanned/stub06` is a 2-page scan and will fail under sync (DL-042).
+  - Subset for the next run: first 10 stubs (by name) of each folder, copied with their keys to `data/subset/` (30 stubs); harness config `evaluation/subset.yaml` (shares `data/ocr_reads`). Not run yet. `generated_scanned/stub06` (2-page scan) swapped for `stub11`; `advs_paystubs/stub_0007` (2-page, free reader can't read it) kept on purpose and will fail under sync (DL-042), to show how failures are reported (user, 2026-11-17).

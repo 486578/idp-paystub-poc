@@ -1,4 +1,5 @@
 # Harness settings for the 30-stub subset (first 10 of each folder, copied to data/subset).
+# generated_scanned/stub06 swapped for stub11; advs stub_0007 is expected to fail (2-page scan).
 # No s3 section: the subset is already local (DL-043).
 aws:
   region: us-east-1
