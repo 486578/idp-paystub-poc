@@ -530,8 +530,7 @@ component:                     # component settings for this run (section 9)
     send_images: never
 
 textract:
-  mode: auto                   # optional: sync | async | auto (see below)
-  staging_bucket: your-staging-bucket
+  staging_bucket: your-staging-bucket   # mode is auto when a bucket is set (see below)
 
 models:
   - {name: opus,   model_id: us.anthropic.claude-opus-5,   temperature: null, schema_method: prompt}
@@ -550,8 +549,8 @@ disputed_stubs:
 | `s3.bucket`, `s3.stubs_prefix` | Where `download` finds the PDFs (`<prefix><group>/<stub>.pdf`). Leave out the whole `s3` section if you don't use `download`. |
 | `paths.*` | Local folders. `ocr_reads` keeps saved OCR reads; share it between configs so the same PDF is never paid for twice. |
 | `component` | Component settings for this run, using the same keys as `config/default.yaml`. Only list what you change. |
-| `textract.mode` | `sync`: one-page PDFs only, no S3 needed. `async`: every Textract read goes through the staging bucket (handles multi-page, a little slower). `auto`: sync first, staging bucket only for multi-page PDFs (**recommended**). **Optional:** leave it out and you get `auto` when `staging_bucket` is set, `sync` when it isn't. |
-| `textract.staging_bucket` | Needed for `async` and `auto`. Must be in `aws.region`. Files are uploaded under `idp-ocr/` and deleted right after the read. |
+| `textract.staging_bucket` | An S3 bucket in `aws.region` for multi-page scans. **Set it and multi-page PDFs just work** (mode becomes `auto`). Leave it out if all your PDFs are one page (mode becomes `sync`). Files are uploaded under `idp-ocr/` and deleted right after the read. |
+| `textract.mode` | **Usually leave it out.** Only set it to force a mode: `sync` = one-page PDFs only, no S3; `async` = every Textract read goes through the bucket (a little slower); `auto` = sync first, bucket only for multi-page PDFs. `async` and `auto` need `staging_bucket`; `sync` refuses one. |
 | `models[].name` | Your short name; used in folder names and `--models`. Lower-case letters, digits, `_`, `-`. |
 | `models[].model_id` | The Bedrock model ID. |
 | `models[].provider` | `converse` (default) or `mantle` (only for models that require it). |
@@ -633,8 +632,7 @@ paths:
   ocr_reads: data/ocr_reads
   results: my_set/results
 textract:
-  mode: auto
-  staging_bucket: your-staging-bucket
+  staging_bucket: your-staging-bucket   # leave out if all your PDFs are one page
 models:
   - {name: sonnet, model_id: us.anthropic.claude-sonnet-5, temperature: null, schema_method: prompt}
 ```
@@ -669,7 +667,7 @@ uv run python -m evaluation score my-set-1 --config evaluation/my_set.yaml
 | Error mentioning `temperature` | The model rejects a temperature (Claude Opus 5 and Sonnet 5). | Set `temperature: null` for that model. |
 | `provider_error` on every stub, failing within a second | Usually expired AWS credentials. | Log in again (e.g. `aws sso login`) and rerun. Check with `aws sts get-caller-identity`. |
 | `SSL validation failed … certificate verify failed` | Your network inspects secure traffic (e.g. Zscaler) with a certificate Windows trusts but Python doesn't. | Make one file with the AWS library's certificates (`.venv\Lib\site-packages\botocore\cacert.pem`) **plus** your organisation's root certificate (exported from the Windows store as PEM), and point AWS at it: `ca_bundle = <path to that file>` in `~/.aws/config`, or the `AWS_CA_BUNDLE` environment variable. Don't turn off certificate checks. |
-| `ReadingError (unsupported_input)` | A multi-page scan with `textract.mode: sync`. | Use `mode: auto` with a `staging_bucket`. |
+| `ReadingError (unsupported_input)` | A multi-page scan with no staging bucket (Textract `sync` reads one page). | Add `textract.staging_bucket` to the harness config. |
 | `needs_review` with "Pay frequency could not be determined" | The stub prints no frequency and no period dates. | Expected. Set `agi.default_frequency` only if you accept the guess. |
 | `needs_review` with "No gross pay" | The model found no gross figure. | Check the stub; the prompt already asks for total earnings when no line is called "gross". |
 | A bonus-type line is multiplied by the pay periods | Its word isn't in `agi.one_time_earnings`. | Add the word (e.g. `spiff`). |
