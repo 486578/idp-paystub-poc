@@ -1,9 +1,12 @@
 from typing import Any
 
+import pytest
+from idp_core.exceptions import ProviderError, UnsupportedInputError
 from idp_genai.service import GenAIService
 from idp_ocr import TextractReader
 
 from evaluation.clients import (
+    AutoTextract,
     boto_config,
     build_genai,
     build_textract,
@@ -90,6 +93,64 @@ def test_eval_clients_textract_reader_builds_its_own_client() -> None:
     reader = build_textract(AWS, TextractSettings())
 
     assert isinstance(reader, TextractReader)
+
+
+# --- auto Textract: sync for one page, staged async otherwise (DL-051) ---------------
+
+REQUEST: Any = "request"
+
+
+class _Reader:
+    capabilities = TextractReader.capabilities
+
+    def __init__(self, name: str, error: Exception | None = None) -> None:
+        self.name = name
+        self.error = error
+        self.requests: list[object] = []
+
+    def read(self, request: Any) -> Any:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        return f"{self.name} result"
+
+
+def test_eval_clients_auto_textract_reads_one_page_with_sync() -> None:
+    sync, staged = _Reader("sync"), _Reader("staged")
+
+    result: Any = AutoTextract(sync, staged).read(REQUEST)
+
+    assert (result, staged.requests) == ("sync result", [])
+
+
+def test_eval_clients_auto_textract_stages_what_sync_refuses() -> None:
+    refused = UnsupportedInputError("Multi-page input requires staging_bucket")
+    sync, staged = _Reader("sync", refused), _Reader("staged")
+
+    result: Any = AutoTextract(sync, staged).read(REQUEST)
+
+    assert (result, staged.requests) == ("staged result", ["request"])
+
+
+def test_eval_clients_auto_textract_does_not_hide_other_errors() -> None:
+    sync = _Reader("sync", ProviderError("Textract failed"))
+    staged = _Reader("staged")
+
+    with pytest.raises(ProviderError):
+        AutoTextract(sync, staged).read(REQUEST)
+    assert staged.requests == []
+
+
+def test_eval_clients_auto_textract_looks_like_the_sync_reader() -> None:
+    auto = AutoTextract(_Reader("textract"), _Reader("staged"))
+
+    assert (auto.name, auto.capabilities) == ("textract", TextractReader.capabilities)
+
+
+def test_eval_clients_auto_mode_builds_auto_textract() -> None:
+    settings = TextractSettings(mode="auto", staging_bucket="staging")
+
+    assert isinstance(build_textract(AWS, settings), AutoTextract)
 
 
 def test_eval_clients_converse_service_is_text_only() -> None:

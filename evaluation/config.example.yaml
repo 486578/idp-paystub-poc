@@ -21,8 +21,9 @@ component:                 # component settings; anything not listed keeps confi
     send_images: never     # text only for now
 
 textract:
-  mode: sync               # sync (1-page only) | async (needs staging_bucket)
-  staging_bucket: null
+  # sync (1-page only) | async (all staged in S3) | auto (sync; staged only for multi-page)
+  mode: sync
+  staging_bucket: null     # required for async and auto; same region as aws.region
 
 models:                    # provider: converse (default) | mantle (only where required)
   # temperature: replaces extraction.temperature for that model; Opus 5 and Sonnet 5

@@ -54,15 +54,16 @@ class PathSettings(_Settings):
 
 
 class TextractSettings(_Settings):
-    """DL-035: sync gets no staging bucket; async needs one."""
+    """DL-035/DL-051: sync gets no staging bucket; async and auto need one."""
 
-    mode: Literal["sync", "async"] = "sync"
+    # auto: sync for one page, staged async when sync refuses a multi-page PDF.
+    mode: Literal["sync", "async", "auto"] = "sync"
     staging_bucket: NonBlank | None = None
 
     @model_validator(mode="after")
     def _bucket_matches_mode(self) -> Self:
-        if self.mode == "async" and self.staging_bucket is None:
-            raise ValueError("async mode needs a staging_bucket")
+        if self.mode != "sync" and self.staging_bucket is None:
+            raise ValueError(f"{self.mode} mode needs a staging_bucket")
         if self.mode == "sync" and self.staging_bucket is not None:
             raise ValueError("sync mode doesn't use a staging_bucket")
         return self

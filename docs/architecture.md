@@ -555,7 +555,7 @@ idp-paystub-usecase/
 ├── config/default.yaml         # documented defaults
 ├── evaluation/                 # POC harness, NOT part of the package
 │   ├── config.example.yaml     # harness settings template, incl. a `component` section (real config.yaml is git-ignored)
-│   ├── subset.yaml             # harness settings for the 30-stub subset in data/subset
+│   ├── subset.yaml             # harness settings for the 30-stub subset in data/subset (git-ignored)
 │   ├── settings.py, clients.py # harness settings; AWS clients built from them
 │   ├── answer_keys.py          # answer keys + the 7a replay
 │   ├── download.py, run.py     # download stubs once; run each model × stub

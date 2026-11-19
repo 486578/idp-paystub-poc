@@ -49,6 +49,22 @@ def test_eval_settings_async_needs_a_staging_bucket() -> None:
         HarnessSettings.model_validate(_settings(textract={"mode": "async"}))
 
 
+def test_eval_settings_auto_needs_a_staging_bucket() -> None:
+    with pytest.raises(ValueError, match="auto mode needs a staging_bucket"):
+        HarnessSettings.model_validate(_settings(textract={"mode": "auto"}))
+
+
+def test_eval_settings_auto_with_bucket_is_accepted() -> None:
+    textract = {"mode": "auto", "staging_bucket": "staging-bucket"}
+
+    settings = HarnessSettings.model_validate(_settings(textract=textract))
+
+    assert (settings.textract.mode, settings.textract.staging_bucket) == (
+        "auto",
+        "staging-bucket",
+    )
+
+
 def test_eval_settings_async_with_bucket_is_accepted() -> None:
     textract = {"mode": "async", "staging_bucket": "staging-bucket"}
 
@@ -199,7 +215,7 @@ def test_eval_settings_component_section_rejects_unknown_keys() -> None:
         HarnessSettings.model_validate(_settings(component=component))
 
 
-@pytest.mark.parametrize("name", ["config.example.yaml", "subset.yaml"])
+@pytest.mark.parametrize("name", ["config.example.yaml"])
 def test_eval_committed_harness_configs_are_text_only(name: str) -> None:
     settings = HarnessSettings.from_yaml(REPO / "evaluation" / name)
 

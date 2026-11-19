@@ -56,6 +56,7 @@
 | DL-048 | 2026-11-17 | Evaluation | Local answer keys may be corrected when the stub clearly contradicts them; each correction is logged (first: advs stub_0009) | Active |
 | DL-049 | 2026-11-17 | Prompt | With no line called "gross", the model uses this period's total earnings; the "no total rows" rule only applies to the lists | Active |
 | DL-050 | 2026-11-17 | Evaluation | When neither we nor the key have an AGI, it counts as an AGI match (result `both_empty`) | Active |
+| DL-051 | 2026-11-19 | Evaluation | Textract `mode: auto`: sync first, staged async only for multi-page PDFs; staging bucket `idp-paystub-poc` | Active (partly supersedes DL-042) |
 
 ---
 
@@ -499,3 +500,11 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **Decision:** when our result and the answer key both have no AGI (e.g. no pay frequency printed), the scorer counts it as an AGI match. The overview still labels it `both_empty`, and it no longer appears in the "AGI mismatches" table. Our AGI missing while the key has one (or the reverse) is still a mismatch. Supersedes the DL-046 note.
 - **Why:** both sides correctly refuse to produce a number from missing information (complicated/stub05).
 - **Approved by:** user (2026-11-17).
+
+## DL-051: Textract "auto" mode (partly supersedes DL-042)
+- **Decision:** the harness setting `textract.mode` gains `auto`. The harness builds two idp-ocr readers: plain sync, and one with the staging bucket. `auto` tries sync first; only when sync refuses the file as unsupported input (multi-page PDF, refused before any AWS call) is it read again through the staging bucket (upload to `idp-ocr/<id>`, async job, file deleted afterwards). Other errors are not caught. `auto` and `async` need `staging_bucket`; `sync` refuses one. The real configs use `auto` with `idp-paystub-poc` (us-east-1).
+- **Why:** multi-page stubs (e.g. advs stub_0007) failed under sync, which DL-042 had accepted for the time being. With `async`, every stub would go through S3 and polling; `auto` keeps one-page stubs on the faster sync path.
+- **How it's built:** in `evaluation/clients.py`, so the component and the IDP libraries are unchanged. idp-ocr treats "unsupported input" as final (no fallback to the next reader), so listing two Textract readers in `reading.strategy` wouldn't work; a small wrapper reader does the switch.
+- **Also:** `evaluation/subset.yaml` is now git-ignored like `config.yaml`, because it holds a real bucket name (DL-041 keeps real infrastructure names out of git).
+- **Needs:** S3 put/get/delete on the bucket and Textract async permissions for the developer's AWS login.
+- **Approved by:** user (2026-11-19).
