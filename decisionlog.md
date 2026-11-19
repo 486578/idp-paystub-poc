@@ -57,6 +57,7 @@
 | DL-049 | 2026-11-17 | Prompt | With no line called "gross", the model uses this period's total earnings; the "no total rows" rule only applies to the lists | Active |
 | DL-050 | 2026-11-17 | Evaluation | When neither we nor the key have an AGI, it counts as an AGI match (result `both_empty`) | Active |
 | DL-051 | 2026-11-19 | Evaluation | Textract `mode: auto`: sync first, staged async only for multi-page PDFs; staging bucket `idp-paystub-poc` | Active (partly supersedes DL-042) |
+| DL-052 | 2026-11-19 | Component / Evaluation | `AutoTextractReader` moves into the component (public API); harness `textract.mode` defaults to `auto` with a staging bucket, `sync` without | Active |
 
 ---
 
@@ -507,4 +508,12 @@ Each item still needs a design decision before coding (progress.md Q19–Q24).
 - **How it's built:** in `evaluation/clients.py`, so the component and the IDP libraries are unchanged. idp-ocr treats "unsupported input" as final (no fallback to the next reader), so listing two Textract readers in `reading.strategy` wouldn't work; a small wrapper reader does the switch.
 - **Also:** `evaluation/subset.yaml` is now git-ignored like `config.yaml`, because it holds a real bucket name (DL-041 keeps real infrastructure names out of git).
 - **Needs:** S3 put/get/delete on the bucket and Textract async permissions for the developer's AWS login.
+- **Approved by:** user (2026-11-19).
+
+## DL-052: Auto Textract as a component building block; harness mode default
+- **Decisions:**
+  1. The auto-switching reader moves from the harness into the component as `AutoTextractReader(sync, staged)` in `reading.py`, exported from `paystub_agi`. The caller still builds both Textract readers (with its own region and bucket) and passes the wrapper in `readers`. The component still creates no AWS clients and holds no bucket names.
+  2. In the harness, `textract.mode` is optional: left out, it is `auto` when `staging_bucket` is set and `sync` when it isn't. An explicit mode still wins and is still checked against the bucket.
+- **Why:** any team using the component gets the multi-page fallback without copying harness code; one less harness setting to get wrong.
+- **Rejected:** putting the Textract mode in `config/default.yaml` (the component config holds business settings only; the mode needs a bucket, which is infrastructure, and would make the component build AWS clients).
 - **Approved by:** user (2026-11-19).

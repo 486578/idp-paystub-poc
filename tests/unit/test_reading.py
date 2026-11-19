@@ -24,9 +24,68 @@ from idp_ocr import S3Downloader
 
 from paystub_agi.config import ReadingConfig
 from paystub_agi.errors import ConfigError, ReadingError
-from paystub_agi.reading import IdpOcrStubReader, document_text
+from paystub_agi.reading import AutoTextractReader, IdpOcrStubReader, document_text
 
 # --- building idp-core evidence by hand ---------------------------------------------
+
+
+class _StubTextract:
+    """Stands in for an idp-ocr TextractReader: a fixed result or error."""
+
+    capabilities = ReaderCapabilities(
+        media_types=("application/pdf",), features=("words", "tables")
+    )
+
+    def __init__(self, name: str, error: Exception | None = None) -> None:
+        self.name = name
+        self.error = error
+        self.requests: list[object] = []
+
+    def read(self, request: Any) -> Any:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        return f"{self.name} result"
+
+
+REQUEST: Any = "request"
+
+
+def test_reading_auto_textract_reads_one_page_with_sync() -> None:
+    sync, staged = _StubTextract("sync"), _StubTextract("staged")
+
+    result: Any = AutoTextractReader(sync, staged).read(REQUEST)
+
+    assert (result, staged.requests) == ("sync result", [])
+
+
+def test_reading_auto_textract_stages_what_sync_refuses() -> None:
+    refused = UnsupportedInputError("Multi-page input requires staging_bucket")
+    sync, staged = _StubTextract("sync", refused), _StubTextract("staged")
+
+    result: Any = AutoTextractReader(sync, staged).read(REQUEST)
+
+    assert (result, staged.requests) == ("staged result", ["request"])
+
+
+def test_reading_auto_textract_does_not_hide_other_errors() -> None:
+    sync = _StubTextract("sync", InvalidInputError("bad file"))
+    staged = _StubTextract("staged")
+
+    with pytest.raises(InvalidInputError):
+        AutoTextractReader(sync, staged).read(REQUEST)
+    assert staged.requests == []
+
+
+def test_reading_auto_textract_looks_like_the_sync_reader() -> None:
+    sync = _StubTextract("textract")
+
+    auto = AutoTextractReader(sync, _StubTextract("staged"))
+
+    assert (auto.name, auto.capabilities) == ("textract", sync.capabilities)
+
+
+# --- building idp-core evidence by hand (continued) ---------------------------------
 
 
 def _box(left: float, top: float, right: float, bottom: float) -> BoundingBox:

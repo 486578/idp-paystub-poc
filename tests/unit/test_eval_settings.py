@@ -54,6 +54,20 @@ def test_eval_settings_auto_needs_a_staging_bucket() -> None:
         HarnessSettings.model_validate(_settings(textract={"mode": "auto"}))
 
 
+def test_eval_settings_mode_defaults_to_auto_with_a_staging_bucket() -> None:
+    textract = {"staging_bucket": "staging-bucket"}
+
+    settings = HarnessSettings.model_validate(_settings(textract=textract))
+
+    assert settings.textract.mode == "auto"
+
+
+def test_eval_settings_mode_defaults_to_sync_without_a_staging_bucket() -> None:
+    settings = HarnessSettings.model_validate(_settings(textract={}))
+
+    assert settings.textract.mode == "sync"
+
+
 def test_eval_settings_auto_with_bucket_is_accepted() -> None:
     textract = {"mode": "auto", "staging_bucket": "staging-bucket"}
 

@@ -10,10 +10,12 @@ from paystub_agi.errors import (
     StoreError,
 )
 from paystub_agi.models import PaystubResult, StubStatus
+from paystub_agi.reading import AutoTextractReader
 from paystub_agi.store import FileEvidenceStore
 
 __all__ = [
     "AnalyzerConfig",
+    "AutoTextractReader",
     "ConfigError",
     "ExtractionError",
     "FileEvidenceStore",

@@ -11,8 +11,16 @@ from tempfile import TemporaryDirectory
 from typing import Literal, Protocol
 
 from idp_core.contracts import Reader
-from idp_core.exceptions import IdpError
-from idp_core.models import Document, Page, Table, Word
+from idp_core.exceptions import IdpError, UnsupportedInputError
+from idp_core.models import (
+    Document,
+    Page,
+    ReaderCapabilities,
+    ReaderResult,
+    ReadRequest,
+    Table,
+    Word,
+)
 from idp_ocr import PageImage as LibraryPageImage
 from idp_ocr import PdfPlumberReader, S3Downloader, read_document, render_pages
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
@@ -53,6 +61,33 @@ class StubReader(Protocol):
     def read_file(self, path: Path, *, images: bool) -> ReadStub: ...
 
     def render(self, path: Path, pages: Sequence[int]) -> tuple[PageImage, ...]: ...
+
+
+class AutoTextractReader:
+    """Sync Textract first; the staged (async, S3) reader only for what sync refuses.
+
+    The caller builds both readers, e.g. `TextractReader(region=...)` and
+    `TextractReader(region=..., staging_bucket=...)` (DL-051).
+    """
+
+    def __init__(self, sync: Reader, staged: Reader) -> None:
+        self._sync = sync
+        self._staged = staged
+
+    @property
+    def name(self) -> str:
+        return str(getattr(self._sync, "name", "textract"))
+
+    @property
+    def capabilities(self) -> ReaderCapabilities:
+        return self._sync.capabilities
+
+    def read(self, request: ReadRequest) -> ReaderResult:
+        try:
+            return self._sync.read(request)
+        except UnsupportedInputError:
+            # Sync refuses multi-page PDFs before calling AWS.
+            return self._staged.read(request)
 
 
 class Renderer(Protocol):

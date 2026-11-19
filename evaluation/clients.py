@@ -7,8 +7,6 @@ from typing import Any
 
 from botocore.config import Config
 from idp_core.contracts import Reader
-from idp_core.exceptions import UnsupportedInputError
-from idp_core.models import ReaderCapabilities, ReaderResult, ReadRequest
 from idp_genai.providers.bedrock import (
     bedrock_capabilities,
     bedrock_mantle_capabilities,
@@ -22,6 +20,7 @@ from evaluation.settings import (
     RetrySettings,
     TextractSettings,
 )
+from paystub_agi import AutoTextractReader
 
 
 def boto_config(retries: RetrySettings) -> Config:
@@ -35,33 +34,10 @@ def textract_staging_bucket(settings: TextractSettings) -> str | None:
     return settings.staging_bucket if settings.mode == "async" else None
 
 
-class AutoTextract:
-    """Sync Textract; the staged (async) reader only for what sync refuses (DL-051)."""
-
-    def __init__(self, sync: Reader, staged: Reader) -> None:
-        self._sync = sync
-        self._staged = staged
-
-    @property
-    def name(self) -> str:
-        return str(getattr(self._sync, "name", "textract"))
-
-    @property
-    def capabilities(self) -> ReaderCapabilities:
-        return self._sync.capabilities
-
-    def read(self, request: ReadRequest) -> ReaderResult:
-        try:
-            return self._sync.read(request)
-        except UnsupportedInputError:
-            # Sync refuses multi-page PDFs before calling AWS.
-            return self._staged.read(request)
-
-
 def build_textract(aws: AwsSettings, settings: TextractSettings) -> Reader:
     # idp-ocr wraps raw boto3 clients privately, so it builds its own (one attempt).
     if settings.mode == "auto":
-        return AutoTextract(
+        return AutoTextractReader(
             TextractReader(region=aws.region),
             TextractReader(region=aws.region, staging_bucket=settings.staging_bucket),
         )

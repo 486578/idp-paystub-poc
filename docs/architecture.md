@@ -499,7 +499,7 @@ agi:
 | Plug-in | Required? | Default | Why it's injected |
 |---|---|---|---|
 | `genai` + `model`: an `idp-genai` service and model ID | **Yes** | — | The caller decides provider, model, credentials, region and retries. |
-| `readers`: paid `idp-ocr` readers by name, e.g. `{"textract": ...}` | Only for names in `reading.strategy` | `pdfplumber` is built in | E.g. a Textract reader with its own region or staging bucket. |
+| `readers`: paid `idp-ocr` readers by name, e.g. `{"textract": ...}` | Only for names in `reading.strategy` | `pdfplumber` is built in | E.g. a Textract reader with its own region or staging bucket, or `AutoTextractReader(sync, staged)`: sync Textract, and the staged (S3) reader only for multi-page PDFs (DL-051, DL-052). |
 | `downloader`: an `idp-ocr` `S3Downloader` | Only for `s3://` sources | none | The caller's S3 client and credentials. |
 | `store`: an evidence store | No | none (in memory only) | See 8.4. |
 
@@ -545,7 +545,7 @@ idp-paystub-usecase/
 │   ├── errors.py               # ConfigError, ReadingError, ExtractionError, StoreError, ...
 │   ├── models.py               # PaystubEvidence, decisions, CheckReport, AgiResult, PaystubResult
 │   ├── matching.py             # whole-word keyword matching (rules, AGI, checks)
-│   ├── reading.py              # idp-ocr call: words + tables, optional page images
+│   ├── reading.py              # idp-ocr call: words + tables, optional page images; AutoTextractReader
 │   ├── extraction.py           # evidence-only schema + prompt + idp-genai call
 │   ├── checks.py               # grounding, net, Social Security gap, federal taxable wages, brackets
 │   ├── rules.py                # rule engine R1–R10

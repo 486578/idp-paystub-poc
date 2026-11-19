@@ -152,7 +152,13 @@ from idp_genai.providers.bedrock import bedrock_capabilities
 from idp_genai.service import GenAIService
 from idp_ocr import TextractReader
 
-from paystub_agi import AnalyzerConfig, FileEvidenceStore, PaystubAgiError, PaystubAnalyzer
+from paystub_agi import (
+    AnalyzerConfig,
+    AutoTextractReader,
+    FileEvidenceStore,
+    PaystubAgiError,
+    PaystubAnalyzer,
+)
 
 region = "us-east-1"
 session = boto3.Session(region_name=region)  # uses your AWS login
@@ -170,16 +176,24 @@ config = AnalyzerConfig.from_mapping(
 )
 # Or load a YAML file: AnalyzerConfig.from_yaml(Path("config/default.yaml"))
 
-# 3. Build the analyzer (one per model).
+# 3. The paid reader for scans. AutoTextractReader uses fast sync Textract for
+#    one-page files and the staging bucket only for multi-page ones.
+textract = AutoTextractReader(
+    TextractReader(region=region),
+    TextractReader(region=region, staging_bucket="your-staging-bucket"),
+)
+# One-page files only, no bucket needed: textract = TextractReader(region=region)
+
+# 4. Build the analyzer (one per model).
 analyzer = PaystubAnalyzer.create(
     config,
     genai=genai,
     model="us.anthropic.claude-sonnet-5",
-    readers={"textract": TextractReader(region=region)},  # paid reader for scans
+    readers={"textract": textract},
     store=FileEvidenceStore(Path("data/ocr_reads")),       # optional: saves OCR reads
 )
 
-# 4. Analyse a paystub (a local path or s3://bucket/key).
+# 5. Analyse a paystub (a local path or s3://bucket/key).
 try:
     result = analyzer.analyze("data/paystubs/advs_paystubs/stub_0006.pdf")
 except PaystubAgiError as error:
@@ -197,7 +211,7 @@ else:
 | `config` | Yes | An `AnalyzerConfig` (see [section 9](#9-component-settings-configdefaultyaml)). |
 | `genai` | Yes | An `idp-genai` service. Decides the provider (Bedrock Converse or Mantle). |
 | `model` | Yes | The model ID to call. |
-| `readers` | Only for paid readers | Readers by name, e.g. `{"textract": TextractReader(...)}`. Every name in `reading.strategy` except `pdfplumber` must be supplied here. |
+| `readers` | Only for paid readers | Readers by name, e.g. `{"textract": AutoTextractReader(...)}`. Every name in `reading.strategy` except `pdfplumber` must be supplied here. |
 | `downloader` | Only for `s3://` paths | An `idp-ocr` S3 downloader, used to fetch the file first. |
 | `store` | No | Saves OCR reads so the same file is never paid for twice. The AI model is still called every time. |
 
@@ -516,7 +530,7 @@ component:                     # component settings for this run (section 9)
     send_images: never
 
 textract:
-  mode: auto                   # sync | async | auto
+  mode: auto                   # optional: sync | async | auto (see below)
   staging_bucket: your-staging-bucket
 
 models:
@@ -536,7 +550,7 @@ disputed_stubs:
 | `s3.bucket`, `s3.stubs_prefix` | Where `download` finds the PDFs (`<prefix><group>/<stub>.pdf`). Leave out the whole `s3` section if you don't use `download`. |
 | `paths.*` | Local folders. `ocr_reads` keeps saved OCR reads; share it between configs so the same PDF is never paid for twice. |
 | `component` | Component settings for this run, using the same keys as `config/default.yaml`. Only list what you change. |
-| `textract.mode` | `sync`: one-page PDFs only, no S3 needed. `async`: every Textract read goes through the staging bucket (handles multi-page, a little slower). `auto`: sync first, staging bucket only for multi-page PDFs (**recommended**). |
+| `textract.mode` | `sync`: one-page PDFs only, no S3 needed. `async`: every Textract read goes through the staging bucket (handles multi-page, a little slower). `auto`: sync first, staging bucket only for multi-page PDFs (**recommended**). **Optional:** leave it out and you get `auto` when `staging_bucket` is set, `sync` when it isn't. |
 | `textract.staging_bucket` | Needed for `async` and `auto`. Must be in `aws.region`. Files are uploaded under `idp-ocr/` and deleted right after the read. |
 | `models[].name` | Your short name; used in folder names and `--models`. Lower-case letters, digits, `_`, `-`. |
 | `models[].model_id` | The Bedrock model ID. |

@@ -21,8 +21,8 @@ component:                 # component settings; anything not listed keeps confi
     send_images: never     # text only for now
 
 textract:
-  # sync (1-page only) | async (all staged in S3) | auto (sync; staged only for multi-page)
-  mode: sync
+  # mode: sync (1-page only) | async (all staged in S3) | auto (sync; staged only for multi-page)
+  # Leave mode out to get auto when staging_bucket is set, sync when it isn't (DL-052).
   staging_bucket: null     # required for async and auto; same region as aws.region
 
 models:                    # provider: converse (default) | mantle (only where required)

@@ -5,7 +5,7 @@ Region, bucket, model IDs and retries live in a YAML file that isn't committed
 """
 
 from pathlib import Path
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 import yaml
 from pydantic import (
@@ -59,6 +59,13 @@ class TextractSettings(_Settings):
     # auto: sync for one page, staged async when sync refuses a multi-page PDF.
     mode: Literal["sync", "async", "auto"] = "sync"
     staging_bucket: NonBlank | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_mode(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "mode" not in data:
+            return {**data, "mode": "auto" if data.get("staging_bucket") else "sync"}
+        return data
 
     @model_validator(mode="after")
     def _bucket_matches_mode(self) -> Self:
