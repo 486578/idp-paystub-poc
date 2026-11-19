@@ -27,7 +27,7 @@ The repository has two parts:
 12. [Use your own paystubs and answer keys](#12-use-your-own-paystubs-and-answer-keys)
 13. [Costs](#13-costs)
 14. [Troubleshooting](#14-troubleshooting)
-15. [Known limitations and open questions](#15-known-limitations-and-open-questions)
+15. [Known limitations](#15-known-limitations)
 16. [For developers](#16-for-developers)
 17. [Repository layout](#17-repository-layout)
 18. [More documentation](#18-more-documentation)
@@ -664,21 +664,13 @@ uv run python -m evaluation score my-set-1 --config evaluation/my_set.yaml
 
 ---
 
-## 15. Known limitations and open questions
+## 15. Known limitations
 
-**Limitations:**
 - **Synthetic test data.** The 82 test paystubs and their answer keys are synthetic. Some answer keys contradict their own stub or each other, so treat agreement with the keys as a guide, not proof.
 - **Some answer keys use a different method.** They always start from gross pay; the component uses printed federal taxable wages when available (a business decision). On those stubs small differences are expected.
 - **Wording varies.** One-time pay is recognised by words (bonus, overtime…). Unfamiliar words (e.g. "Spiff") are treated as regular pay until added to the list.
 - **Text only so far.** The harness sends text to the models, not page images.
 - **Model answers vary slightly between runs** for models that don't accept `temperature: 0`.
-
-**Open business questions** (each is a one-line setting change once answered):
-- Is "Extra Hours" overtime or regular pay? On the test stubs it looks like overtime when paid at a premium rate or coded OT.
-- Is a sales payout named "bonus" on a quarterly commission statement counted once or every quarter?
-- Under a mixed heading like "Pre-Tax, Taxes, and Other Deductions", should well-known benefits (401k, medical…) count as pre-tax?
-
-The full list is in [progress.md](progress.md).
 
 ---
 
